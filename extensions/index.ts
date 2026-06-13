@@ -1,7 +1,7 @@
 /**
  * Minimal footer — replaces pi's default footer with a clean status line:
  *
- *   /full/path                      (skill1 | skill2)  model  context_used / context_size
+ *   ~/path/to/dir                      (skill1 | skill2)  git-branch  model  12k / 128k
  *
  * Settings are persisted in ~/.pi/agent/settings.json under "minFooter".
  *
@@ -19,8 +19,24 @@ import { homedir } from "node:os";
 // ── Settings ──────────────────────────────────────────────────────────
 
 interface Settings {
-  minFooter?: { enabled?: boolean };
+  minFooter?: {
+    enabled?: boolean;
+    showGitBranch?: boolean;
+    showSkills?: boolean;
+    showPath?: boolean;
+    showModel?: boolean;
+    showContext?: boolean;
+  };
 }
+
+const DEFAULT_SETTINGS: Settings["minFooter"] = {
+  enabled: true,
+  showGitBranch: true,
+  showSkills: true,
+  showPath: true,
+  showModel: true,
+  showContext: true,
+};
 
 function settingsPath(): string {
   return join(homedir(), ".pi", "agent", "settings.json");
@@ -40,11 +56,7 @@ function writeSettings(patch: Partial<Settings>): void {
     const path = settingsPath();
     mkdirSync(dirname(path), { recursive: true });
     const current = readSettings();
-    const merged: Settings = {
-      ...current,
-      ...patch,
-    };
-    writeFileSync(path, JSON.stringify(merged, null, 2) + "\n");
+    writeFileSync(path, JSON.stringify({ ...current, ...patch }, null, 2) + "\n");
   } catch {
     // best-effort
   }
@@ -55,10 +67,15 @@ function readEnabled(): boolean {
   return s.minFooter?.enabled !== false; // default to true
 }
 
-function writeEnabled(v: boolean): void {
+function readConfig(): Settings["minFooter"] {
   const s = readSettings();
-  s.minFooter = { ...s.minFooter, enabled: v };
-  writeSettings(s);
+  return { ...DEFAULT_SETTINGS, ...s.minFooter };
+}
+
+function writeEnabled(v: boolean): void {
+  const cfg = readConfig();
+  cfg.enabled = v;
+  writeSettings({ minFooter: cfg });
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────
@@ -73,10 +90,12 @@ function formatSize(n: number | null | undefined): string {
 // ── State ─────────────────────────────────────────────────────────────
 
 let enabled = readEnabled();
+let config = readConfig();
 let state = {
   cwd: process.cwd(),
   model: "no-model",
   context: "?",
+  branch: "",
   footerData: null as ReadonlyFooterDataProvider | null,
 };
 
@@ -89,7 +108,10 @@ function updateState(ctx: ExtensionContext): void {
     : "?";
 }
 
+// ── Footer builders ───────────────────────────────────────────────────
+
 function buildLeft(): string {
+  if (!config.showPath) return "";
   const home = homedir();
   if (state.cwd.startsWith(home)) {
     return "~" + state.cwd.slice(home.length);
@@ -97,15 +119,30 @@ function buildLeft(): string {
   return state.cwd;
 }
 
-function buildRight(): string {
-  let skills = "";
-  if (state.footerData) {
-    const statuses = state.footerData.getExtensionStatuses();
+function buildRight(footerData: ReadonlyFooterDataProvider): string {
+  const segments: string[] = [];
+
+  if (config.showSkills) {
+    const statuses = footerData.getExtensionStatuses();
     if (statuses.size > 0) {
-      skills = "(" + [...statuses.values()].join(" | ") + ")  ";
+      segments.push("(" + [...statuses.values()].join(" | ") + ")");
     }
   }
-  return `${skills}${state.model}  ${state.context}`;
+
+  if (config.showGitBranch) {
+    const branch = footerData.getGitBranch();
+    if (branch) segments.push(branch);
+  }
+
+  if (config.showModel) {
+    segments.push(state.model);
+  }
+
+  if (config.showContext) {
+    segments.push(state.context);
+  }
+
+  return segments.join("  ");
 }
 
 // ── Extension ─────────────────────────────────────────────────────────
@@ -113,6 +150,7 @@ function buildRight(): string {
 export default function (pi: ExtensionAPI) {
   function setFooter(ctx: ExtensionContext): void {
     updateState(ctx);
+    config = readConfig(); // re-read on each set
 
     if (!ctx.hasUI) return;
 
@@ -120,10 +158,12 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setFooter((tui, theme, footerData) => {
         state.footerData = footerData;
 
+        const unsub = footerData.onBranchChange(() => tui.requestRender());
+
         return {
           render(width: number): string[] {
             const left = buildLeft();
-            const right = buildRight();
+            const right = buildRight(footerData);
             const leftW = visibleWidth(left);
             const rightW = visibleWidth(right);
             const gap = Math.max(1, width - leftW - rightW);
@@ -132,7 +172,7 @@ export default function (pi: ExtensionAPI) {
             return [line];
           },
           invalidate(): void {},
-          dispose: () => {}, // no reactive onStatusChange hook; lifecycle events trigger re-render
+          dispose: unsub,
         };
       });
     } else {
@@ -143,7 +183,7 @@ export default function (pi: ExtensionAPI) {
   // ── Lifecycle events ────────────────────────────────────────────────
 
   pi.on("session_start", async (_event, ctx) => {
-    enabled = readEnabled(); // pick up any external edits
+    enabled = readEnabled();
     setFooter(ctx);
   });
 
