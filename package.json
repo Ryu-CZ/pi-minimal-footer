@@ -21,7 +21,7 @@
     "LICENSE",
     "README.md",
     "package.json",
-    "preview.png"
+    "media/"
   ],
   "engines": {
     "node": ">=18"
@@ -38,6 +38,6 @@
     "extensions": [
       "./extensions"
     ],
-    "image": "https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/preview.png"
+    "image": "https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/preview.png"
   }
 }
