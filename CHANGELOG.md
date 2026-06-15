@@ -14,14 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Model and context usage rendered in **bold** for better at-a-glance scanning
+- README tagline tightened to "A clean, compact one-line footer for pi."
 
 ### Fixed
 
 - Skills segment no longer shows trailing `|` separator when one skill has an empty status value
-
-### Changed
-
-- README tagline tightened to "A clean, compact one-line footer for pi."
 
 ## [0.1.0] - 2026-06-15
 

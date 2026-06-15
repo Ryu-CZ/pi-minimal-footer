@@ -1,6 +1,6 @@
 # pi-minimal-footer
 
-A minimal footer extension for [pi](https://github.com/earendil-works/pi-coding-agent) that replaces the default footer with a clean, compact status line:
+A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi-coding-agent).
 
 ```
 ~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
