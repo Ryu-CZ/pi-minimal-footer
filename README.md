@@ -12,11 +12,13 @@
   </a>
 </p>
 
-A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi-coding-agent).
+A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi).
 
 ```
 ~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
 ```
+
+![pi-minimal-footer screenshot](media/github-preview.png)
 
 ## Install
 
