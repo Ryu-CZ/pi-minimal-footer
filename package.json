@@ -1,8 +1,14 @@
 {
   "name": "pi-minimal-footer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A minimal footer extension for pi — clean status line with path, skills, model, and context usage.",
-  "keywords": ["pi-package", "pi-extension", "pi", "footer", "minimal"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "footer",
+    "minimal"
+  ],
   "homepage": "https://github.com/Ryu-CZ/pi-minimal-footer#readme",
   "bugs": {
     "url": "https://github.com/Ryu-CZ/pi-minimal-footer/issues"
@@ -29,7 +35,9 @@
     "@earendil-works/pi-tui": "*"
   },
   "pi": {
-    "extensions": ["./extensions"],
+    "extensions": [
+      "./extensions"
+    ],
     "image": "https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/preview.png"
   }
 }
