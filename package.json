@@ -14,7 +14,8 @@
     "extensions/",
     "LICENSE",
     "README.md",
-    "package.json"
+    "package.json",
+    "preview.png"
   ],
   "engines": {
     "node": ">=18"
@@ -28,6 +29,7 @@
     "@earendil-works/pi-tui": "*"
   },
   "pi": {
-    "extensions": ["./extensions"]
+    "extensions": ["./extensions"],
+    "image": "https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/preview.png"
   }
 }
