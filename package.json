@@ -8,7 +8,7 @@
     "url": "https://github.com/Ryu-CZ/pi-minimal-footer/issues"
   },
   "license": "MIT",
-  "author": "Ryu-CZ",
+  "author": "Ryu-CZ <thandeus@gmail.com>",
   "files": [
     "CHANGELOG.md",
     "extensions/",
