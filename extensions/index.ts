@@ -130,7 +130,7 @@ function buildLeft(): string {
   return state.cwd;
 }
 
-function buildRight(footerData: ReadonlyFooterDataProvider): string {
+function buildRight(footerData: ReadonlyFooterDataProvider, bold: (s: string) => string): string {
   const segments: string[] = [];
 
   if (config.showSkills) {
@@ -147,11 +147,11 @@ function buildRight(footerData: ReadonlyFooterDataProvider): string {
   }
 
   if (config.showModel) {
-    segments.push(state.model);
+    segments.push(bold(state.model));
   }
 
   if (config.showContext) {
-    segments.push(state.context);
+    segments.push(bold(state.context));
   }
 
   return segments.join("  ");
@@ -175,7 +175,7 @@ export default function (pi: ExtensionAPI) {
         return {
           render(width: number): string[] {
             const left = buildLeft();
-            const right = buildRight(footerData);
+            const right = buildRight(footerData, (s) => theme.bold(s));
             const leftW = visibleWidth(left);
             const rightW = visibleWidth(right);
             const gap = Math.max(1, width - leftW - rightW);

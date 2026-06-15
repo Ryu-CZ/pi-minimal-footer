@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Preview screenshot (`preview.png`) and `pi.image` gallery metadata for pi.dev/packages
 
+### Changed
+
+- Model and context usage rendered in **bold** for better at-a-glance scanning
+
 ### Fixed
 
 - Skills segment no longer shows trailing `|` separator when one skill has an empty status value
