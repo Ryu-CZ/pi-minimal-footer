@@ -39,10 +39,10 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 ## Features
 
 - **Working directory** — relative path from home (`~/...`)
-- **Active skills** — extension statuses from `ctx.ui.setStatus()`
+- **Active skills** — extensions reporting their current status
 - **Git branch** — current branch name
 - **Model** — active model ID
-- **Context usage** — tokens used / context window (e.g. `12/128k`)
+- **Context usage** — tokens used / context window (e.g., `12/128k`)
 
 ## Commands
 
@@ -52,11 +52,11 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 | `/minfooter on` | Enable |
 | `/minfooter off` | Disable |
 
-> The `/minfooter` command only controls the `enabled` setting. To tweak individual segments (path, model, etc.), edit `~/.pi/agent/settings.json` directly.
+> The `/minfooter` command only toggles the `enabled` flag. To show or hide individual segments, edit `~/.pi/agent/settings.json` directly.
 
 ## Configuration
 
-Settings are persisted in `~/.pi/agent/settings.json` under the `minFooter` key:
+Settings live in `~/.pi/agent/settings.json` under the `minFooter` key:
 
 ```json
 {
@@ -70,5 +70,3 @@ Settings are persisted in `~/.pi/agent/settings.json` under the `minFooter` key:
   }
 }
 ```
-
-Edit the file directly to show or hide individual segments. The `/minfooter` command is a shortcut that toggles only the `enabled` flag.
