@@ -9,7 +9,10 @@ A minimal footer extension for [pi](https://github.com/earendil-works/pi-coding-
 ## Install
 
 ```bash
-# From git (recommended)
+# From npm (recommended)
+pi install pi-minimal-footer
+
+# From git
 pi install git:github.com/Ryu-CZ/pi-minimal-footer
 
 # Manual — copy into your extensions directory
