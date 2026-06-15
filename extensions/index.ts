@@ -135,8 +135,9 @@ function buildRight(footerData: ReadonlyFooterDataProvider): string {
 
   if (config.showSkills) {
     const statuses = footerData.getExtensionStatuses();
-    if (statuses.size > 0) {
-      segments.push("(" + [...statuses.values()].join(" | ") + ")");
+    const skillNames = [...statuses.values()].filter(s => s.trim());
+    if (skillNames.length > 0) {
+      segments.push("(" + skillNames.join(" | ") + ")");
     }
   }
 

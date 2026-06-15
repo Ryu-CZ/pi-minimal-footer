@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Preview screenshot (`preview.png`) and `pi.image` gallery metadata for pi.dev/packages
 
+### Fixed
+
+- Skills segment no longer shows trailing `|` separator when one skill has an empty status value
+
+### Changed
+
+- README tagline tightened to "A clean, compact one-line footer for pi."
+
 ## [0.1.0] - 2026-06-15
 
 First npm-ready release.
