@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Preview screenshot (`preview.png`) and `pi.image` gallery metadata for pi.dev/packages
+
 ## [0.1.0] - 2026-06-15
 
 First npm-ready release.
