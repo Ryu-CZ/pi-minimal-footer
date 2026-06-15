@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-06-15
 
+First npm-ready release.
+
 ### Added
 
 - Minimal footer extension for pi — replaces the default footer with a clean, compact status line
