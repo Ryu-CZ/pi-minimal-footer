@@ -104,7 +104,7 @@ function updateState(ctx: ExtensionContext): void {
   state.model = ctx.model?.id ?? "no-model";
   const usage = ctx.getContextUsage();
   state.context = usage
-    ? `${formatSize(usage.tokens)} / ${formatSize(usage.contextWindow)}`
+    ? `${formatSize(usage.tokens)}/${formatSize(usage.contextWindow)}`
     : "?";
 }
 
