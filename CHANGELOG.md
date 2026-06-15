@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-06-15
+## [0.1.0] - 2026-06-15
 
 ### Added
 
@@ -27,3 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Context usage format removes spaces around `/` separator
 - README updated with Nerd Fonts git icon and npm install instructions
 - Package metadata expanded for npm release (`author`, `files`, `engines`, `keywords`, `homepage`, `bugs`)
+
+## [0.0.0] - 2026-06-13
+
+### Added
+
+- Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
