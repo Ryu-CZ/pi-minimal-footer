@@ -15,7 +15,7 @@
   </a>
 </p>
 
-A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi) — [available on the pi package gallery](https://pi.dev/packages/pi-minimal-footer).
+A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi).
 
 ```
 ~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
@@ -24,6 +24,8 @@ A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi) 
 ![pi-minimal-footer screenshot](media/github-preview.png)
 
 ## Install
+
+[Available on the pi package gallery](https://pi.dev/packages/pi-minimal-footer).
 
 ```bash
 # From npm (recommended)
