@@ -3,7 +3,7 @@
 A minimal footer extension for [pi](https://github.com/earendil-works/pi-coding-agent) that replaces the default footer with a clean, compact status line:
 
 ```
-~/path/to/dir                (skill1 | skill2)   main  sonnet  12k/128k
+~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
 ```
 
 ## Install
@@ -25,7 +25,7 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 - **Active skills** — extension statuses from `ctx.ui.setStatus()`
 - **Git branch** — current branch name
 - **Model** — active model ID
-- **Context usage** — tokens used / context window (e.g. `12k/128k`)
+- **Context usage** — tokens used / context window (e.g. `12/128k`)
 
 ## Commands
 

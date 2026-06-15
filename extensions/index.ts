@@ -103,9 +103,20 @@ function updateState(ctx: ExtensionContext): void {
   state.cwd = ctx.cwd ?? process.cwd();
   state.model = ctx.model?.id ?? "no-model";
   const usage = ctx.getContextUsage();
-  state.context = usage
-    ? `${formatSize(usage.tokens)}/${formatSize(usage.contextWindow)}`
-    : "?";
+  if (usage) {
+    const fTokens = formatSize(usage.tokens);
+    const fWindow = formatSize(usage.contextWindow);
+    const lastT = fTokens[fTokens.length - 1];
+    const lastW = fWindow[fWindow.length - 1];
+    // Deduplicate k/M suffix: show suffix only on denominator when both use the same unit
+    if ((lastT === "k" || lastT === "M") && lastT === lastW) {
+      state.context = `${fTokens.slice(0, -1)}/${fWindow}`;
+    } else {
+      state.context = `${fTokens}/${fWindow}`;
+    }
+  } else {
+    state.context = "?";
+  }
 }
 
 // ── Footer builders ───────────────────────────────────────────────────
