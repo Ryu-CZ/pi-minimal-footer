@@ -1,5 +1,17 @@
 # pi-minimal-footer
 
+<p>
+  <a href="https://www.npmjs.com/package/pi-minimal-footer">
+    <img src="https://img.shields.io/npm/v/pi-minimal-footer" alt="npm version">
+  </a>
+  <a href="https://www.npmjs.com/package/pi-minimal-footer">
+    <img src="https://img.shields.io/npm/dt/pi-minimal-footer" alt="npm downloads">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/npm/l/pi-minimal-footer" alt="license">
+  </a>
+</p>
+
 A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi-coding-agent).
 
 ```

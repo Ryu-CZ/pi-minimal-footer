@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Preview screenshot (`preview.png`) and `pi.image` gallery metadata for pi.dev/packages
+- README badges: npm version, downloads, and license
 
 ### Changed
 
