@@ -10,9 +10,12 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/npm/l/pi-minimal-footer" alt="license">
   </a>
+  <a href="https://pi.dev/packages/pi-minimal-footer">
+    <img src="https://img.shields.io/badge/pi-package-1a1a2e" alt="pi package">
+  </a>
 </p>
 
-A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi).
+A clean, compact one-line footer for [pi](https://github.com/earendil-works/pi) — [available on the pi package gallery](https://pi.dev/packages/pi-minimal-footer).
 
 ```
 ~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
