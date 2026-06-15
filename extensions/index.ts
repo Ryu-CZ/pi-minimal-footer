@@ -1,7 +1,7 @@
 /**
  * Minimal footer — replaces pi's default footer with a clean status line:
  *
- *   ~/path/to/dir                      (skill1 | skill2)  git-branch  model  12k / 128k
+ *   ~/path/to/dir                (skill1 | skill2)   main  sonnet  12k / 128k
  *
  * Settings are persisted in ~/.pi/agent/settings.json under "minFooter".
  *
@@ -131,7 +131,7 @@ function buildRight(footerData: ReadonlyFooterDataProvider): string {
 
   if (config.showGitBranch) {
     const branch = footerData.getGitBranch();
-    if (branch) segments.push(branch);
+    if (branch) segments.push(` ${branch}`);
   }
 
   if (config.showModel) {

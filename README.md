@@ -1,19 +1,22 @@
 # pi-minimal-footer
 
-A minimal footer extension for [pi](https://github.com/earendil-works/pi-coding-agent) that replaces the default footer with a clean status line:
+A minimal footer extension for [pi](https://github.com/earendil-works/pi-coding-agent) that replaces the default footer with a clean, compact status line:
 
 ```
-~/path/to/dir                      (skill1 | skill2)  git-branch  model  12k / 128k
+~/path/to/dir                (skill1 | skill2)   main  sonnet  12k / 128k
 ```
 
 ## Install
 
 ```bash
-# From git
+# From git (recommended)
 pi install git:github.com/Ryu-CZ/pi-minimal-footer
 
-# Or manually
-cp -r extensions ~/.pi/agent/extensions/
+# Manual — copy into your extensions directory
+cp -r extensions/* ~/.pi/agent/extensions/
+
+# Development — symlink for live edits
+ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 ```
 
 ## Features
@@ -28,9 +31,11 @@ cp -r extensions ~/.pi/agent/extensions/
 
 | Command | Description |
 |---|---|
-| `/minfooter` | Toggle on/off |
-| `/minfooter on` | Force enable |
-| `/minfooter off` | Force disable |
+| `/minfooter` | Toggle the extension on/off |
+| `/minfooter on` | Enable |
+| `/minfooter off` | Disable |
+
+> The `/minfooter` command only controls the `enabled` setting. To tweak individual segments (path, model, etc.), edit `~/.pi/agent/settings.json` directly.
 
 ## Configuration
 
@@ -49,4 +54,4 @@ Settings are persisted in `~/.pi/agent/settings.json` under the `minFooter` key:
 }
 ```
 
-You can edit `~/.pi/agent/settings.json` directly or use the `/minfooter` command to toggle.
+Edit the file directly to show or hide individual segments. The `/minfooter` command is a shortcut that toggles only the `enabled` flag.
