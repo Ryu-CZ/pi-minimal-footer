@@ -10,6 +10,7 @@
   "license": "MIT",
   "author": "Ryu-CZ",
   "files": [
+    "CHANGELOG.md",
     "extensions/",
     "LICENSE",
     "README.md",
