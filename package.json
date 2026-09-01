@@ -24,7 +24,7 @@
     "media/"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22.19.0"
   },
   "repository": {
     "type": "git",

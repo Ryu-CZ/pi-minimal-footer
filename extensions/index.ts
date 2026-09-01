@@ -29,7 +29,9 @@ interface Settings {
   };
 }
 
-const DEFAULT_SETTINGS: Settings["minFooter"] = {
+type FooterSettings = NonNullable<Settings["minFooter"]>;
+
+const DEFAULT_SETTINGS: FooterSettings = {
   enabled: true,
   showGitBranch: true,
   showSkills: true,
@@ -67,7 +69,7 @@ function readEnabled(): boolean {
   return s.minFooter?.enabled !== false; // default to true
 }
 
-function readConfig(): Settings["minFooter"] {
+function readConfig(): FooterSettings {
   const s = readSettings();
   return { ...DEFAULT_SETTINGS, ...s.minFooter };
 }

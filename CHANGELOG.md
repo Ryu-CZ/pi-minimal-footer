@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated the Node.js engine declaration to match current Pi releases (`>=22.19.0`)
 - README polish: remove internal API jargon, fix `e.g.,` comma, tighten config section
+
+### Fixed
+
+- Keep merged footer settings non-optional so the extension passes strict TypeScript checks
 
 ## [0.1.1] - 2026-06-15
 
