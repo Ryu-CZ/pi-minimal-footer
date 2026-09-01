@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-01
+
 ### Changed
 
 - Updated the Node.js engine declaration to match current Pi releases (`>=22.19.0`)
@@ -15,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Keep merged footer settings non-optional so the extension passes strict TypeScript checks
+- Footer no longer overflows on narrow terminal windows — truncate the path (then the right side) to fit the terminal width using pi-tui's `truncateToWidth`, instead of emitting a line wider than the terminal (which crashed pi)
 
 ## [0.1.1] - 2026-06-15
 
@@ -62,7 +65,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.0.0...v0.1.0
 [0.0.0]: https://github.com/Ryu-CZ/pi-minimal-footer/releases/tag/v0.0.0
