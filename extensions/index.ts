@@ -11,7 +11,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -178,12 +178,17 @@ export default function (pi: ExtensionAPI) {
           render(width: number): string[] {
             const left = buildLeft();
             const right = buildRight(footerData, (s) => theme.bold(s));
-            const leftW = visibleWidth(left);
             const rightW = visibleWidth(right);
-            const gap = Math.max(1, width - leftW - rightW);
-            const spacer = " ".repeat(gap);
-            const line = theme.fg("dim", `${left}${spacer}${right}`);
-            return [line];
+
+            // If the right side (model + context) alone doesn't fit, drop the path and truncate it.
+            if (rightW >= width) {
+              return [theme.fg("dim", truncateToWidth(right, width, ""))];
+            }
+
+            // Otherwise keep the right side intact and fit the path into the remaining
+            // space (padded to exactly fill it, keeping the right side right-aligned).
+            const leftPart = truncateToWidth(left, width - rightW - 1, "...", true);
+            return [theme.fg("dim", `${leftPart} ${right}`)];
           },
           invalidate(): void {},
           dispose: unsub,
