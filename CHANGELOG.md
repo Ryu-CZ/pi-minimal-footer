@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Strict TypeScript type checking for the Pi extension
+
 ### Changed
 
 - Refresh README and package-gallery screenshots with Pi 1.0.3 and the current minimal footer

@@ -41,6 +41,10 @@ cp -r extensions/* ~/.pi/agent/extensions/
 ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 ```
 
+## Development
+
+Requires Node.js >=22.19.0. Run `npm ci`, `npm run check`, and `npm test`. Pi loads TypeScript directly; no build is needed. For an isolated local preview, run `pi --no-extensions -e ./extensions/index.ts`. After source edits, use `/reload` in Pi. Tests use Pi 1.0.3 and make no provider requests.
+
 ## Features
 
 - **Working directory** — home abbreviated as `~`; paths outside home remain absolute

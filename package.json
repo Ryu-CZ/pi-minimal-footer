@@ -31,7 +31,8 @@
     "url": "git+https://github.com/Ryu-CZ/pi-minimal-footer.git"
   },
   "scripts": {
-    "test": "node --test --test-concurrency=1 tests/*.test.mjs"
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "check": "tsc --noEmit"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
@@ -39,7 +40,9 @@
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.0.3",
-    "@earendil-works/pi-tui": "1.0.3"
+    "@earendil-works/pi-tui": "1.0.3",
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
   },
   "pi": {
     "extensions": [
