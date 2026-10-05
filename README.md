@@ -18,7 +18,7 @@
 A clean, compact one-line footer for [Pi](https://github.com/earendil-works/pi).
 
 ```
-~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
+~/path/to/dir                (status1 | status2)   main  sonnet  12/128k
 ```
 
 ![pi-minimal-footer screenshot](media/github-preview.png)
@@ -43,11 +43,15 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 
 ## Features
 
-- **Working directory** — relative path from home (`~/...`)
+- **Working directory** — home abbreviated as `~`; paths outside home remain absolute
 - **Extension statuses** — text reported by extensions through Pi's status API (`showSkills` retains its existing setting name; it does not discover installed skills)
 - **Git branch** — current branch name
 - **Model** — active model ID
-- **Context usage** — tokens used / context window (e.g., `12/128k`)
+- **Context usage** — tokens used / context window (e.g., `12/128k`). After compaction, Pi reports usage as unknown (`?`) until a subsequent model response.
+
+On narrow terminals, the footer shrinks or drops the path, then drops extension statuses and the git branch before truncating model/context. The remaining segments stay right-aligned.
+
+The footer appears only in Pi's interactive terminal UI, not in print, JSON, or RPC modes.
 
 ## Commands
 
