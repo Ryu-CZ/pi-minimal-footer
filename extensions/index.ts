@@ -1,19 +1,21 @@
 /**
  * Minimal footer — replaces pi's default footer with a clean status line:
  *
- *   ~/path/to/dir                (skill1 | skill2)   main  sonnet  12k / 128k
+ *   ~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
  *
- * Settings are persisted in ~/.pi/agent/settings.json under "minFooter".
+ * Settings are persisted in the agent directory (usually ~/.pi/agent)
+ * settings.json under "minFooter".
  *
  * Commands:
  *   /minfooter          — toggle on/off
  *   /minfooter on|off   — force state
  */
 
-import type { ExtensionAPI, ExtensionContext, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, sep } from "node:path";
 import { homedir } from "node:os";
 
 // ── Settings ──────────────────────────────────────────────────────────
@@ -41,7 +43,7 @@ const DEFAULT_SETTINGS: FooterSettings = {
 };
 
 function settingsPath(): string {
-  return join(homedir(), ".pi", "agent", "settings.json");
+  return join(getAgentDir(), "settings.json");
 }
 
 function readSettings(): Settings {
@@ -64,11 +66,6 @@ function writeSettings(patch: Partial<Settings>): void {
   }
 }
 
-function readEnabled(): boolean {
-  const s = readSettings();
-  return s.minFooter?.enabled !== false; // default to true
-}
-
 function readConfig(): FooterSettings {
   const s = readSettings();
   return { ...DEFAULT_SETTINGS, ...s.minFooter };
@@ -89,19 +86,22 @@ function formatSize(n: number | null | undefined): string {
   return String(n);
 }
 
+/** Abbreviate only an exact home match or a boundary-prefixed child path. */
+function abbreviateHome(p: string, home: string): string {
+  if (p === home) return "~";
+  if (p.startsWith(home + sep)) return "~" + p.slice(home.length);
+  return p;
+}
+
 // ── State ─────────────────────────────────────────────────────────────
 
-let enabled = readEnabled();
-let config = readConfig();
-let state = {
-  cwd: process.cwd(),
-  model: "no-model",
-  context: "?",
-  branch: "",
-  footerData: null as ReadonlyFooterDataProvider | null,
-};
+interface FooterState {
+  cwd: string;
+  model: string;
+  context: string;
+}
 
-function updateState(ctx: ExtensionContext): void {
+function updateState(ctx: ExtensionContext, state: FooterState): void {
   state.cwd = ctx.cwd ?? process.cwd();
   state.model = ctx.model?.id ?? "no-model";
   const usage = ctx.getContextUsage();
@@ -121,101 +121,126 @@ function updateState(ctx: ExtensionContext): void {
   }
 }
 
-// ── Footer builders ───────────────────────────────────────────────────
+// ── Layout ────────────────────────────────────────────────────────────
+//
+// Priority when space runs out:
+//   1. drop/truncate the path first (truncate, then drop entirely)
+//   2. drop extension statuses
+//   3. drop the git branch
+//   4. retain model/context as long as possible
+//   5. last resort: truncate the remaining model/context to fit
+//
+// Every returned line is guaranteed to fit `width` (visible-width safe).
 
-function buildLeft(): string {
-  if (!config.showPath) return "";
-  const home = homedir();
-  if (state.cwd.startsWith(home)) {
-    return "~" + state.cwd.slice(home.length);
-  }
-  return state.cwd;
-}
+function buildLine(width: number, path: string, statuses: string, branch: string, model: string, context: string): string {
+  if (width <= 0) return "";
+  const core = [model, context].filter(Boolean).join("  ");
+  const right = [statuses, branch, core].filter(Boolean).join("  ");
+  const rightWidth = visibleWidth(right);
 
-function buildRight(footerData: ReadonlyFooterDataProvider, bold: (s: string) => string): string {
-  const segments: string[] = [];
-
-  if (config.showSkills) {
-    const statuses = footerData.getExtensionStatuses();
-    const skillNames = [...statuses.values()].filter(s => s.trim());
-    if (skillNames.length > 0) {
-      segments.push("(" + skillNames.join(" | ") + ")");
-    }
-  }
-
-  if (config.showGitBranch) {
-    const branch = footerData.getGitBranch();
-    if (branch) segments.push(` ${branch}`);
+  if (rightWidth < width) {
+    const left = path ? truncateToWidth(path, width - rightWidth - 1, "...", true) : " ".repeat(width - rightWidth - 1);
+    return `${left} ${right}`;
   }
 
-  if (config.showModel) {
-    segments.push(bold(state.model));
-  }
-
-  if (config.showContext) {
-    segments.push(bold(state.context));
-  }
-
-  return segments.join("  ");
+  // Drop the path, then extension statuses, then git; protect model/context until last.
+  let remaining = right;
+  if (rightWidth > width) remaining = [branch, core].filter(Boolean).join("  ");
+  if (visibleWidth(remaining) > width) remaining = core;
+  remaining = truncateToWidth(remaining, width, "...");
+  return " ".repeat(width - visibleWidth(remaining)) + remaining;
 }
 
 // ── Extension ─────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
-  function setFooter(ctx: ExtensionContext): void {
-    updateState(ctx);
-    config = readConfig(); // re-read on each set
+  let config = readConfig();
+  let enabled = config.enabled !== false;
+  const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?" };
+  let requestRender: (() => void) | null = null;
+  let disposeFooter: (() => void) | null = null;
 
-    if (!ctx.hasUI) return;
+  function install(ctx: ExtensionContext): void {
+    config = readConfig();
+    enabled = config.enabled !== false;
+    if (ctx.mode !== "tui") return;
 
-    if (enabled) {
-      ctx.ui.setFooter((tui, theme, footerData) => {
-        state.footerData = footerData;
-
-        const unsub = footerData.onBranchChange(() => tui.requestRender());
-
-        return {
-          render(width: number): string[] {
-            const left = buildLeft();
-            const right = buildRight(footerData, (s) => theme.bold(s));
-            const rightW = visibleWidth(right);
-
-            // If the right side (model + context) alone doesn't fit, drop the path and truncate it.
-            if (rightW >= width) {
-              return [theme.fg("dim", truncateToWidth(right, width, ""))];
-            }
-
-            // Otherwise keep the right side intact and fit the path into the remaining
-            // space (padded to exactly fill it, keeping the right side right-aligned).
-            const leftPart = truncateToWidth(left, width - rightW - 1, "...", true);
-            return [theme.fg("dim", `${leftPart} ${right}`)];
-          },
-          invalidate(): void {},
-          dispose: unsub,
-        };
-      });
-    } else {
-      ctx.ui.setFooter(undefined);
+    if (!enabled) {
+      if (disposeFooter) ctx.ui.setFooter(undefined);
+      return;
     }
+
+    ctx.ui.setFooter((tui, theme, footerData) => {
+      const unsub = footerData.onBranchChange(() => tui.requestRender());
+      const request = () => tui.requestRender();
+      requestRender = request;
+      let disposed = false;
+      const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        unsub();
+        if (requestRender === request) requestRender = null;
+        if (disposeFooter === dispose) disposeFooter = null;
+      };
+      disposeFooter = dispose;
+
+      return {
+        render(width: number): string[] {
+          const skills = config.showSkills
+            ? [...footerData.getExtensionStatuses().values()].filter((s) => s.trim())
+            : [];
+          const branch = config.showGitBranch ? footerData.getGitBranch() : null;
+          const line = buildLine(
+            width,
+            config.showPath ? abbreviateHome(state.cwd, homedir()) : "",
+            skills.length ? `(${skills.join(" | ")})` : "",
+            branch ? ` ${branch}` : "",
+            config.showModel ? theme.bold(state.model) : "",
+            config.showContext ? theme.bold(state.context) : "",
+          );
+          return [theme.fg("dim", line)];
+        },
+        invalidate(): void {},
+        dispose,
+      };
+    });
   }
 
-  // ── Lifecycle events ────────────────────────────────────────────────
+  /** Cheap refresh: update plain state and request one render. */
+  function refresh(ctx: ExtensionContext): void {
+    updateState(ctx, state);
+    requestRender?.();
+  }
+
+  // ── Lifecycle events (passive; no footer re-install) ────────────────
 
   pi.on("session_start", async (_event, ctx) => {
-    enabled = readEnabled();
-    setFooter(ctx);
+    refresh(ctx);
+    install(ctx);
   });
 
   pi.on("model_select", async (_event, ctx) => {
-    setFooter(ctx);
+    refresh(ctx);
   });
 
-  pi.on("message_end", async (_event, ctx) => {
-    setFooter(ctx);
+  pi.on("turn_end", async (_event, ctx) => {
+    refresh(ctx);
+  });
+
+  pi.on("agent_settled", async (_event, ctx) => {
+    refresh(ctx);
   });
 
   pi.on("session_compact", async (_event, ctx) => {
-    setFooter(ctx);
+    refresh(ctx);
+  });
+
+  pi.on("session_tree", async (_event, ctx) => {
+    refresh(ctx);
+  });
+
+  pi.on("session_shutdown", async () => {
+    disposeFooter?.();
   });
 
   // ── Command ─────────────────────────────────────────────────────────
@@ -227,7 +252,8 @@ export default function (pi: ExtensionAPI) {
       else if (args === "off") enabled = false;
       else enabled = !enabled;
       writeEnabled(enabled);
-      setFooter(ctx);
+      refresh(ctx);
+      install(ctx);
       ctx.ui.notify(`Minimal footer ${enabled ? "enabled" : "disabled"}`, "info");
     },
   });

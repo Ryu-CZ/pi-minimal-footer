@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refresh context after persisted turns, final agent settlement, compaction, and session-tree navigation without reinstalling the footer on each event
+- Read `minFooter` from Pi's configured agent directory at session start or explicit toggle; retain unrelated settings
+- On narrow terminals, shrink/drop the path, then extension statuses, then git branch before truncating model/context
+
+### Fixed
+
+- Preserve right alignment on narrow terminals after dropping extension statuses or git branch, including truncated model/context
+- Avoid stale branch subscriptions and render references after footer teardown
+- Abbreviate home only for the exact home path or its children
+- Show the custom footer only in terminal UI mode
+- Clarify that `showSkills` displays extension statuses, not installed skills
+
 ## [0.1.2] - 2026-09-01
 
 ### Changed

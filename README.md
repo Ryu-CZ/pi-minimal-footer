@@ -44,7 +44,7 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 ## Features
 
 - **Working directory** — relative path from home (`~/...`)
-- **Active skills** — extensions reporting their current status
+- **Extension statuses** — text reported by extensions through Pi's status API (`showSkills` retains its existing setting name; it does not discover installed skills)
 - **Git branch** — current branch name
 - **Model** — active model ID
 - **Context usage** — tokens used / context window (e.g., `12/128k`)
@@ -57,11 +57,11 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 | `/minfooter on` | Enable |
 | `/minfooter off` | Disable |
 
-> The `/minfooter` command only toggles the `enabled` flag. To show or hide individual segments, edit `~/.pi/agent/settings.json` directly.
+> The `/minfooter` command only toggles the `enabled` flag. To show or hide individual segments, edit the agent settings file directly.
 
 ## Configuration
 
-Settings live in `~/.pi/agent/settings.json` under the `minFooter` key:
+Settings live in Pi's configured agent directory, in `settings.json` under the `minFooter` key (normally `~/.pi/agent/settings.json`). The footer reads settings on session start and when `/minfooter` is run; external edits do not take effect until one of those actions (there is no file watcher). Unrelated settings are preserved when toggling.
 
 ```json
 {
