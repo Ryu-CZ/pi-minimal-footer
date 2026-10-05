@@ -15,7 +15,7 @@
   </a>
 </p>
 
-A clean, compact one-line footer for [Pi](https://github.com/earendil-works/pi).
+An opinionated, clean, compact one-line footer for [Pi](https://github.com/earendil-works/pi).
 
 ```
 ~/path/to/dir                (status1 | status2)   main  sonnet  12/128k
