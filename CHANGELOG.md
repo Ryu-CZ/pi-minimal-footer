@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refresh README and package-gallery screenshots with Pi 1.0.3 and the current minimal footer
 - Refresh context after persisted turns, final agent settlement, compaction, and session-tree navigation without reinstalling the footer on each event
 - Read `minFooter` from Pi's configured agent directory at session start or explicit toggle; retain unrelated settings
 - On narrow terminals, shrink/drop the path, then extension statuses, then git branch before truncating model/context
