@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Usage limits for the selected provider: OpenAI Codex, Claude OAuth, GitHub Copilot, Gemini CLI, MiniMax (global/CN), Kimi Coding, and OpenCode Go
+- Show the shortest available quota window, including weekly/monthly when no shorter quota exists; omit reset time when the provider does not report it
+- Compact five-cell Braille quota bar with nine bottom-up fill states (`⠀`, `⡀`, `⣀`, `⣄`, `⣤`, `⣦`, `⣶`, `⣷`, `⣿`), 2.5% steps, and green/amber/red usage colors
+- Absolute local reset time marked with `↻` in 24-hour format, e.g. `⣿⣶⠀⠀⠀ ↻16:40`, without provider/window labels or numeric percentages
+- Passive Codex/Claude quota updates from provider responses, with four-minute usage-endpoint fallback and reset-time refresh using Pi's existing credentials
+- Immediate quota clearing and request/timer cancellation on provider switch; ignore late results and dim only the current provider's cached quota after temporary refresh failures
+- Hide usage for local/unsupported models, missing credentials, or absent applicable limits; stop quota work on footer teardown, disable, and session shutdown
+- README examples and documentation for the complete usage feature, its shading, reset time, refresh behavior, and edge cases
+- Honorable mention to Can Celik (@ogulcancelik): provider usage-fetching and quota-parsing logic copied and adapted from [@ogulcancelik/pi-minimal-footer](https://pi.dev/packages/@ogulcancelik/pi-minimal-footer), with upstream MIT attribution retained
+
+### Changed
+
+- Group directory and git branch on the left; keep extension statuses, model, context, and quota on the right in one line, with extra spacing before quota
+- Shorten location and statuses on narrow terminals, shrink quota before truncating model/context, and preserve the reset time
+- Simplify quota header parsing and footer width calculations; remove the unused duplicate Claude header parser
+
+### Fixed
+
+- Release stalled quota authentication, fetch, and response-body waits after five seconds so scheduled polling can recover; ignore late results after timeout or provider switch
+- Merge partial Codex/Claude quota signals without replacing a cached shorter window or postponing its four-minute refresh when only longer windows update
+- Preserve dim cached usage after malformed responses, while explicit empty/unlimited quotas clear it; retain valid usage when optional reset metadata is invalid
+- Accept Kimi used-only quotas and week/month durations, and derive Codex reset times from relative endpoint delays when an absolute timestamp is unavailable
+- Clear cached quota when Pi reports missing credentials; retain dim cached usage for temporary authentication failures and recover after credentials are restored
+
 ## [0.1.3] - 2026-10-05
 
 ### Added

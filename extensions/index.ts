@@ -1,7 +1,7 @@
 /**
  * Minimal footer — replaces pi's default footer with a clean status line:
  *
- *   ~/path/to/dir                (skill1 | skill2)   main  sonnet  12/128k
+ *   ~/path/to/dir   main       (status1 | status2)  sonnet  12/128k    ⣿⣶⠀⠀⠀ ↻16:40
  *
  * Settings are persisted in the agent directory (usually ~/.pi/agent)
  * settings.json under "minFooter".
@@ -17,6 +17,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname, sep } from "node:path";
 import { homedir } from "node:os";
+import { UsageLimits } from "./lib/usage-limits.js";
 
 // ── Settings ──────────────────────────────────────────────────────────
 
@@ -123,32 +124,60 @@ function updateState(ctx: ExtensionContext, state: FooterState): void {
 
 // ── Layout ────────────────────────────────────────────────────────────
 //
-// Priority when space runs out:
-//   1. drop/truncate the path first (truncate, then drop entirely)
-//   2. drop extension statuses
-//   3. drop the git branch
-//   4. retain model/context as long as possible
-//   5. last resort: truncate the remaining model/context to fit
-//
-// Every returned line is guaranteed to fit `width` (visible-width safe).
+// Keep quota and reset time together; shorten location/statuses before model/context.
+// All segment measurements use visible widths, including ANSI and wide characters.
 
-function buildLine(width: number, path: string, statuses: string, branch: string, model: string, context: string): string {
+const SEGMENT_GAP = "  ";
+const QUOTA_GAP = "    ";
+const LOCATION_GAP_WIDTH = 3;
+const FULL_QUOTA_WIDTH = 12;
+const COMPACT_QUOTA_WIDTH = 11;
+const MIN_TEXT_WIDTH = 4;
+const MIN_STATUS_WIDTH = 12;
+
+function buildLine(width: number, path: string, statuses: string, branch: string, model: string, context: string,
+  usage: (available: number) => string | null): string {
   if (width <= 0) return "";
-  const core = [model, context].filter(Boolean).join("  ");
-  const right = [statuses, branch, core].filter(Boolean).join("  ");
-  const rightWidth = visibleWidth(right);
-
-  if (rightWidth < width) {
-    const left = path ? truncateToWidth(path, width - rightWidth - 1, "...", true) : " ".repeat(width - rightWidth - 1);
-    return `${left} ${right}`;
+  let core = [model, context].filter(Boolean).join(SEGMENT_GAP);
+  let quota = usage(Math.min(FULL_QUOTA_WIDTH, width)) ?? "";
+  const availableQuotaWidth = width - visibleWidth(core) - QUOTA_GAP.length;
+  if (quota && visibleWidth(quota) > availableQuotaWidth) {
+    const compactWidth = Math.min(width, Math.max(COMPACT_QUOTA_WIDTH, availableQuotaWidth));
+    quota = usage(compactWidth) ?? "";
   }
-
-  // Drop the path, then extension statuses, then git; protect model/context until last.
-  let remaining = right;
-  if (rightWidth > width) remaining = [branch, core].filter(Boolean).join("  ");
-  if (visibleWidth(remaining) > width) remaining = core;
-  remaining = truncateToWidth(remaining, width, "...");
-  return " ".repeat(width - visibleWidth(remaining)) + remaining;
+  const quotaGapWidth = quota && core ? QUOTA_GAP.length : 0;
+  const coreBudget = Math.max(0, width - visibleWidth(quota) - quotaGapWidth);
+  if (quota && coreBudget < MIN_TEXT_WIDTH) {
+    core = "";
+    quota = usage(Math.min(FULL_QUOTA_WIDTH, width)) ?? "";
+  } else if (visibleWidth(core) > coreBudget) {
+    const modelGapWidth = model && context ? SEGMENT_GAP.length : 0;
+    const modelBudget = coreBudget - visibleWidth(context) - modelGapWidth;
+    if (modelBudget > 0) {
+      core = [truncateToWidth(model, modelBudget, "..."), context].filter(Boolean).join(SEGMENT_GAP);
+    } else {
+      core = truncateToWidth(context || model, coreBudget, "...");
+    }
+  }
+  const protectedRight = [core, quota].filter(Boolean).join(QUOTA_GAP);
+  const branchReservation = branch ? visibleWidth(branch) + LOCATION_GAP_WIDTH : 0;
+  const statusBudget = width - visibleWidth(protectedRight) - branchReservation - SEGMENT_GAP.length;
+  let fittedStatuses = "";
+  if (statusBudget >= MIN_STATUS_WIDTH) {
+    fittedStatuses = statuses;
+    if (visibleWidth(statuses) > statusBudget) {
+      fittedStatuses = truncateToWidth(statuses, statusBudget - 1, "...") + ")";
+    }
+  }
+  const right = [fittedStatuses, protectedRight].filter(Boolean).join(SEGMENT_GAP);
+  const locationGapWidth = right ? LOCATION_GAP_WIDTH : 0;
+  const leftBudget = Math.max(0, width - visibleWidth(right) - locationGapWidth);
+  const fittedBranch = visibleWidth(branch) <= leftBudget ? branch : "";
+  const pathGapWidth = fittedBranch && path ? SEGMENT_GAP.length : 0;
+  const pathBudget = leftBudget - visibleWidth(fittedBranch) - pathGapWidth;
+  const fittedPath = pathBudget >= MIN_TEXT_WIDTH ? truncateToWidth(path, pathBudget, "...") : "";
+  const left = [fittedPath, fittedBranch].filter(Boolean).join(SEGMENT_GAP);
+  return left + " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right))) + right;
 }
 
 // ── Extension ─────────────────────────────────────────────────────────
@@ -159,13 +188,15 @@ export default function (pi: ExtensionAPI) {
   const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?" };
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
+  const usageLimits = new UsageLimits(() => requestRender?.());
 
   function install(ctx: ExtensionContext): void {
     config = readConfig();
     enabled = config.enabled !== false;
-    if (ctx.mode !== "tui") return;
+    if (ctx.mode !== "tui") { usageLimits.stop(); return; }
 
     if (!enabled) {
+      usageLimits.stop();
       if (disposeFooter) ctx.ui.setFooter(undefined);
       return;
     }
@@ -179,7 +210,10 @@ export default function (pi: ExtensionAPI) {
         if (disposed) return;
         disposed = true;
         unsub();
-        if (requestRender === request) requestRender = null;
+        if (requestRender === request) {
+          requestRender = null;
+          usageLimits.stop();
+        }
         if (disposeFooter === dispose) disposeFooter = null;
       };
       disposeFooter = dispose;
@@ -192,18 +226,20 @@ export default function (pi: ExtensionAPI) {
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
           const line = buildLine(
             width,
-            config.showPath ? abbreviateHome(state.cwd, homedir()) : "",
-            skills.length ? `(${skills.join(" | ")})` : "",
-            branch ? ` ${branch}` : "",
+            config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
+            skills.length ? theme.fg("dim", `(${skills.join(" | ")})`) : "",
+            branch ? theme.fg("dim", ` ${branch}`) : "",
             config.showModel ? theme.bold(state.model) : "",
-            config.showContext ? theme.bold(state.context) : "",
+            config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
+            (available) => usageLimits.line(available, theme),
           );
-          return [theme.fg("dim", line)];
+          return [line];
         },
         invalidate(): void {},
         dispose,
       };
     });
+    usageLimits.select(ctx, enabled);
   }
 
   /** Cheap refresh: update plain state and request one render. */
@@ -215,12 +251,22 @@ export default function (pi: ExtensionAPI) {
   // ── Lifecycle events (passive; no footer re-install) ────────────────
 
   pi.on("session_start", async (_event, ctx) => {
+    usageLimits.stop();
     refresh(ctx);
     install(ctx);
   });
 
   pi.on("model_select", async (_event, ctx) => {
+    usageLimits.select(ctx, enabled);
     refresh(ctx);
+  });
+
+  pi.on("after_provider_response", (event, ctx) => {
+    if (ctx.model) usageLimits.headers(ctx.model.provider, event.headers);
+  });
+
+  pi.on("provider_stream_event", (event) => {
+    usageLimits.stream(event.provider, event.model, event.data);
   });
 
   pi.on("turn_end", async (_event, ctx) => {
@@ -240,6 +286,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    usageLimits.stop();
     disposeFooter?.();
   });
 
