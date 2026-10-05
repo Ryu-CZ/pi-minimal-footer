@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-05
+
 ### Added
 
 - Usage limits for the selected provider: OpenAI Codex, Claude OAuth, GitHub Copilot, Gemini CLI, MiniMax (global/CN), Kimi Coding, and OpenCode Go
@@ -112,7 +114,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.0...v0.1.1
