@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep quota requests and timers stopped after another extension removes or replaces the footer, even when the model changes; explicit reinstallation restores polling
+- Use all spare columns for responsive quota bars when the left group is absent
+- Fall back to default settings when the JSON root is null, a scalar, or an array
+
+### Changed
+
+- Clarify renderer ownership and layout budgeting with rationale comments; isolate reset-label formatting and name shared bar-size limits
+
 ## [0.3.0] - 2026-10-06
 
 ### Added

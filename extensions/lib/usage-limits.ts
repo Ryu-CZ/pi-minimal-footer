@@ -6,6 +6,29 @@ import { parseUsageWindows, record, shortest, supportedOrigin, usageRequest, win
 import type { QuotaWindow } from "./quota-providers.js";
 
 const REFRESH_MS = 4 * 60_000;
+const REQUEST_TIMEOUT_MS = 5000;
+const HOUR_MS = 60 * 60_000;
+const DAY_MS = 24 * HOUR_MS;
+const CELL_STEPS = 8;
+const PARTIAL_CELL_FILLS = ["", "⡀", "⣀", "⣄", "⣤", "⣦", "⣶", "⣷"];
+
+// Start compact so extra precision never steals space from the other footer fields.
+export const BASE_BAR_CELLS = 5;
+export const MAX_BAR_CELLS = 10;
+
+function formatResetLabel(resetAt: number | null, now: number): string {
+  if (resetAt === null) return "";
+  const remaining = resetAt - now;
+  // Clock time loses the day for distant resets; minutes add noise at that scale.
+  if (remaining > 10 * DAY_MS) return `↻${Math.floor(remaining / DAY_MS)}d`;
+  if (remaining > DAY_MS) {
+    const days = Math.floor(remaining / DAY_MS);
+    const hours = Math.floor(remaining % DAY_MS / HOUR_MS);
+    return `↻${days}d${hours}h`;
+  }
+  const date = new Date(resetAt);
+  return `↻${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -15,7 +38,7 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
     };
     signal.addEventListener("abort", abort, { once: true });
     if (signal.aborted) abort();
-    // Observe late failures even after abort has settled the caller's await.
+    // Credential and body promises may ignore abort; observe late failures to avoid unhandled rejections.
     promise.then((value) => {
       signal.removeEventListener("abort", abort);
       resolve(value);
@@ -179,9 +202,10 @@ export class UsageLimits {
     const provider = this.provider!;
     const modelId = model.id;
     const controller = new AbortController();
+    // Identity checks below keep late responses from restoring a replaced provider's quota.
     this.request = controller;
     this.attemptedAt = Date.now();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     timeout.unref();
     try {
       const request = await abortable(usageRequest(ctx, model), controller.signal);
@@ -208,27 +232,19 @@ export class UsageLimits {
     }
   }
 
-  line(width: number, theme: Theme, maxCells = 10): string | null {
+  line(width: number, theme: Theme, maxCells = MAX_BAR_CELLS): string | null {
     const window = this.selectedWindow()?.[1];
     if (!this.ctx || !window) return null;
     const now = Date.now();
-    const date = window.resetAt === null ? null : new Date(window.resetAt);
-    const remaining = window.resetAt === null ? 0 : window.resetAt - now;
-    const day = 24 * 60 * 60 * 1000;
-    let time = date ? `↻${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}` : "";
-    if (remaining > 10 * day) {
-      time = `↻${Math.floor(remaining / day)}d`;
-    } else if (remaining > day) {
-      time = `↻${Math.floor(remaining / day)}d${Math.floor(remaining % day / (60 * 60 * 1000))}h`;
-    }
-    if (width < (time ? time.length : 1)) return null;
-    const cells = Math.min(maxCells, Math.max(0, width - time.length));
-    const steps = Math.round(window.used / 100 * cells * 8);
-    const filled = "⣿".repeat(Math.floor(steps / 8)) + ["", "⡀", "⣀", "⣄", "⣤", "⣦", "⣶", "⣷"][steps % 8];
-    const empty = "⠀".repeat(cells - Math.ceil(steps / 8));
+    const resetLabel = formatResetLabel(window.resetAt, now);
+    if (width < (resetLabel.length || 1)) return null;
+    const cells = Math.min(maxCells, Math.max(0, width - resetLabel.length));
+    const steps = Math.round(window.used / 100 * cells * CELL_STEPS);
+    const filled = "⣿".repeat(Math.floor(steps / CELL_STEPS)) + PARTIAL_CELL_FILLS[steps % CELL_STEPS];
+    const empty = "⠀".repeat(cells - Math.ceil(steps / CELL_STEPS));
     const stale = this.stale || (window.resetAt !== null && now >= window.resetAt);
     const color = stale ? "dim" : window.used >= 92 ? "error" : window.used >= 85 ? "warning" : "success";
     const bar = cells ? theme.fg(color, filled) + theme.fg("dim", empty) : "";
-    return bar + theme.fg("dim", time);
+    return bar + theme.fg("dim", resetLabel);
   }
 }

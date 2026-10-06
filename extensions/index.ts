@@ -17,7 +17,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname, sep } from "node:path";
 import { homedir } from "node:os";
-import { UsageLimits } from "./lib/usage-limits.js";
+import { BASE_BAR_CELLS, MAX_BAR_CELLS, UsageLimits } from "./lib/usage-limits.js";
 
 // ── Settings ──────────────────────────────────────────────────────────
 
@@ -52,7 +52,10 @@ function settingsPath(): string {
 function readSettings(): Settings {
   try {
     if (!existsSync(settingsPath())) return {};
-    return JSON.parse(readFileSync(settingsPath(), "utf-8")) as Settings;
+    const settings: unknown = JSON.parse(readFileSync(settingsPath(), "utf-8"));
+    // Valid JSON can still be null or a scalar; a broken preference file must not prevent loading.
+    if (settings === null || typeof settings !== "object" || Array.isArray(settings)) return {};
+    return settings as Settings;
   } catch {
     return {};
   }
@@ -65,7 +68,7 @@ function writeSettings(patch: Partial<Settings>): void {
     const current = readSettings();
     writeFileSync(path, JSON.stringify({ ...current, ...patch }, null, 2) + "\n");
   } catch {
-    // best-effort
+    // A read-only settings file must not crash the extension.
   }
 }
 
@@ -135,10 +138,14 @@ const LOCATION_GAP_WIDTH = 3;
 const MIN_TEXT_WIDTH = 4;
 const MIN_STATUS_WIDTH = 12;
 
-function buildLine(width: number, path: string, statuses: string, branch: string, model: string, context: string,
-  usage: (available: number, maxCells?: number) => string | null, statusSeparator: string, locationSeparator: string): string {
+function buildLine(
+  width: number, path: string, statuses: string, branch: string, model: string, context: string,
+  usage: (available: number, maxCells?: number) => string | null,
+  statusSeparator: string, locationSeparator: string,
+): string {
   if (width <= 0) return "";
   let core = [model, context].filter(Boolean).join(MODEL_GAP);
+  // Budget the compact bar first; its expanded size must not drive truncation decisions.
   const quota = usage(width) ?? "";
   const quotaGapWidth = quota && core ? QUOTA_GAP.length : 0;
   const coreBudget = Math.max(0, width - visibleWidth(quota) - quotaGapWidth);
@@ -164,16 +171,18 @@ function buildLine(width: number, path: string, statuses: string, branch: string
     }
   }
   let right = [fittedStatuses, protectedRight].filter(Boolean).join(statusSeparator);
-  const locationGapWidth = right ? LOCATION_GAP_WIDTH : 0;
-  const leftBudget = Math.max(0, width - visibleWidth(right) - locationGapWidth);
+  const reservedLocationGapWidth = right ? LOCATION_GAP_WIDTH : 0;
+  const leftBudget = Math.max(0, width - visibleWidth(right) - reservedLocationGapWidth);
   const fittedBranch = visibleWidth(branch) <= leftBudget ? branch : "";
   const pathGapWidth = fittedBranch && path ? visibleWidth(locationSeparator) : 0;
   const pathBudget = leftBudget - visibleWidth(fittedBranch) - pathGapWidth;
   const fittedPath = pathBudget >= MIN_TEXT_WIDTH ? truncateToWidth(path, pathBudget, "...") : "";
   const left = [fittedPath, fittedBranch].filter(Boolean).join(locationSeparator);
   if (quota) {
-    const spareWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right) - locationGapWidth);
-    const expandedQuota = usage(visibleWidth(quota) + spareWidth, 10) ?? quota;
+    // A dropped left group needs no divider; those columns belong to the quota bar instead.
+    const interGroupGapWidth = left && right ? LOCATION_GAP_WIDTH : 0;
+    const spareWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right) - interGroupGapWidth);
+    const expandedQuota = usage(visibleWidth(quota) + spareWidth, MAX_BAR_CELLS) ?? quota;
     const expandedCore = [core, expandedQuota].filter(Boolean).join(QUOTA_GAP);
     right = [fittedStatuses, expandedCore].filter(Boolean).join(statusSeparator);
   }
@@ -189,6 +198,12 @@ export default function (pi: ExtensionAPI) {
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
   const usageLimits = new UsageLimits(() => requestRender?.());
+
+  function selectUsage(ctx: ExtensionContext): void {
+    // The preference may remain enabled after another extension replaces our footer.
+    // Poll only while we own a live renderer, or model changes can resurrect hidden requests.
+    usageLimits.select(ctx, enabled && disposeFooter !== null);
+  }
 
   function install(ctx: ExtensionContext): void {
     config = readConfig();
@@ -210,6 +225,7 @@ export default function (pi: ExtensionAPI) {
         if (disposed) return;
         disposed = true;
         unsub();
+        // A superseded renderer must not stop its replacement's quota polling.
         if (requestRender === request) {
           requestRender = null;
           usageLimits.stop();
@@ -220,7 +236,7 @@ export default function (pi: ExtensionAPI) {
 
       return {
         render(width: number): string[] {
-          const skills = config.showSkills
+          const statuses = config.showSkills
             ? [...footerData.getExtensionStatuses().values()].filter((s) => s.trim())
             : [];
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
@@ -228,11 +244,11 @@ export default function (pi: ExtensionAPI) {
           const line = buildLine(
             width,
             config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
-            skills.length ? statusSeparator + skills.map((s) => theme.fg("dim", s)).join(statusSeparator) : "",
+            statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
             branch ? theme.fg("dim", ` ${branch}`) : "",
             config.showModel ? theme.bold(state.model) : "",
             config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
-            (available, maxCells = 5) => usageLimits.line(available, theme, maxCells),
+            (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
             statusSeparator,
             config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
           );
@@ -242,7 +258,7 @@ export default function (pi: ExtensionAPI) {
         dispose,
       };
     });
-    usageLimits.select(ctx, enabled);
+    selectUsage(ctx);
   }
 
   /** Cheap refresh: update plain state and request one render. */
@@ -260,7 +276,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (_event, ctx) => {
-    usageLimits.select(ctx, enabled);
+    selectUsage(ctx);
     refresh(ctx);
   });
 

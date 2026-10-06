@@ -193,6 +193,51 @@ test('isolated settings preserve unrelated options and toggle/reload boundaries'
   assert.equal(on.unrelated, 7); assert.equal(on.minFooter.enabled, true);
 });
 
+test('invalid settings roots fall back to defaults and remain toggleable', async () => {
+  for (const contents of ['null', '[]', 'true', '42', '"settings"', '{invalid json']) {
+    await writeFile(join(agentDir, 'settings.json'), contents);
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext();
+    await start(runtime, ctx);
+    assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12\/128k/);
+    await runtime.commands.get('minfooter').handler('off', ctx);
+    const settings = JSON.parse(await readFile(join(agentDir, 'settings.json'), 'utf8'));
+    assert.equal(settings.minFooter.enabled, false);
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+});
+
+for (const replacement of [undefined, () => ({ render: () => ['other footer'], dispose() {} })]) {
+  test(`model selection cannot restart quota after ${replacement ? 'replacement' : 'removal'} of the footer`, async (t) => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+    const calls = fakeUsageFetch(t);
+    const runtime = await installExtension();
+    const { ctx, ui } = codexContext();
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx);
+    await settle();
+    assert.equal(calls.length, 1);
+    ctx.ui.setFooter(replacement);
+    ctx.model.id = 'other-codex-model';
+    await emit(runtime, 'model_select', ctx);
+    await settle();
+    assert.equal(calls.length, 1, 'disposed footer must not authenticate or fetch on model selection');
+    t.mock.timers.tick(240000);
+    await settle();
+    assert.equal(calls.length, 1, 'disposed footer must not retain polling timers');
+    if (replacement) assert.deepEqual(ui.component.render(120), ['other footer']);
+    else assert.equal(ui.component, undefined);
+
+    await runtime.commands.get('minfooter').handler('on', ctx);
+    await settle();
+    assert.equal(calls.length, 2, 'explicit reinstallation restores quota polling');
+    assert.ok(hasQuota(ui));
+    t.mock.timers.tick(240000);
+    await settle();
+    assert.equal(calls.length, 3, 'reinstalled footer continues periodic polling');
+  });
+}
+
 test('reset labels use clock time, days/hours, then days only without overflowing', async (t) => {
   const now = 1791200000000;
   const hour = 60 * 60 * 1000;
@@ -233,7 +278,7 @@ test('quota bar grows from five to ten cells using spare columns', async (t) => 
   const { ctx, ui } = codexContext();
   await start(runtime, ctx);
   await settle();
-  for (const [width, cells] of [[11, 5], [14, 5], [15, 6], [16, 7], [17, 8], [18, 9], [19, 10], [120, 10]]) {
+  for (const [width, cells] of [[11, 5], [12, 6], [13, 7], [14, 8], [15, 9], [16, 10], [19, 10], [120, 10]]) {
     const line = stripAnsi(ui.component.render(width)[0]);
     const bar = line.match(/[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+(?=↻)/)?.[0];
     assert.equal(bar?.length, cells, `width=${width}`);
@@ -241,6 +286,7 @@ test('quota bar grows from five to ten cells using spare columns', async (t) => 
   }
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻/);
   assert.match(stripAnsi(ui.component.render(11)[0]), /⣿⣶⠀{3}↻/);
+  assert.match(stripAnsi(ui.component.render(16)[0]), /^[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{10}↻\d\d:\d\d$/, 'quota-only footer uses every available column');
   for (let width = 0; width <= 120; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
   await emit(runtime, 'session_shutdown', ctx);
 });
