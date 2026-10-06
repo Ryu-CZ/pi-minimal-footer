@@ -246,14 +246,15 @@ export class UsageLimits {
     if (!this.ctx || !window) return null;
     const now = Date.now();
     const resetLabel = formatResetLabel(window.resetAt, now);
-    if (width < (resetLabel.length || 1)) return null;
-    const cells = Math.min(maxCells, Math.max(0, width - resetLabel.length));
+    // Reserve two columns for brackets so an empty bar still has clear edges.
+    if (width < (resetLabel.length || 1) + 3) return null;
+    const cells = Math.min(maxCells, Math.max(1, width - resetLabel.length - 2));
     const steps = Math.round(window.used / 100 * cells * CELL_STEPS);
     const filled = "⣿".repeat(Math.floor(steps / CELL_STEPS)) + PARTIAL_CELL_FILLS[steps % CELL_STEPS];
     const empty = "⠀".repeat(cells - Math.ceil(steps / CELL_STEPS));
     const stale = this.stale || (window.resetAt !== null && now >= window.resetAt);
     const color = stale ? "dim" : window.used >= 92 ? "error" : window.used >= 85 ? "warning" : "success";
     const bar = cells ? theme.fg(color, filled) + theme.fg("dim", empty) : "";
-    return bar + theme.fg("dim", resetLabel);
+    return theme.fg("dim", "[") + bar + theme.fg("dim", "]") + theme.fg("dim", resetLabel);
   }
 }

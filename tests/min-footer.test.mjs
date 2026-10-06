@@ -281,15 +281,15 @@ test('usage bar grows from five to ten cells using spare columns', async (t) => 
   const { ctx, ui } = codexContext();
   await start(runtime, ctx);
   await settle();
-  for (const [width, cells] of [[11, 5], [12, 6], [13, 7], [14, 8], [15, 9], [16, 10], [19, 10], [120, 10]]) {
+  for (const [width, cells] of [[11, 3], [12, 4], [13, 5], [14, 6], [15, 7], [16, 8], [19, 10], [120, 10]]) {
     const line = stripAnsi(ui.component.render(width)[0]);
     const bar = line.match(/[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+(?=↻)/)?.[0];
     assert.equal(bar?.length, cells, `width=${width}`);
     assert.ok(visibleWidth(line) <= width);
   }
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻/);
-  assert.match(stripAnsi(ui.component.render(11)[0]), /⣿⣶⠀{3}↻/);
-  assert.match(stripAnsi(ui.component.render(16)[0]), /^[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{10}↻\d\d:\d\d$/, 'usage-only footer uses every available column');
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻/);
+  assert.match(stripAnsi(ui.component.render(11)[0]), /\[⣿⣶⠀\]↻/);
+  assert.match(stripAnsi(ui.component.render(16)[0]), /^\[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{8}\]↻\d\d:\d\d$/, 'usage-only footer uses every available column');
   for (let width = 0; width <= 120; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
   await emit(runtime, 'session_shutdown', ctx);
 });
