@@ -17,8 +17,6 @@ Path and branch on the left; extension statuses, model, context, and provider qu
 
 ![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42/200k · ⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h](media/github-preview.png)
 
-*Screenshot shows an earlier layout; the text preview reflects current source.*
-
 ## Install
 
 Requires Node.js >=22.19.0.
