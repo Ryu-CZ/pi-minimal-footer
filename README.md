@@ -57,7 +57,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 
 `⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h` shows **subscription allowance used**, not context usage.
 
-- Bar: 5–10 cells, expanding into spare space; green below 85%, amber from 85%, red from 92%. Dim means cached after a refresh failure. Very narrow terminals may show fewer cells or only the reset label.
+- Bar: shown as `[cells]` with 5–10 cells, expanding into spare space; green below 85%, amber from 85%, red from 92%. The brackets keep the bar’s beginning and end visible even when it is empty. Dim means cached after a refresh failure. Very narrow terminals may show fewer cells or only the reset label.
 - Reset: local `↻HH:mm` through 24 hours; whole days/hours above 24 hours (`↻1d8h`); whole days above 10 days (`↻12d`). Remaining durations round down. No reset reported means bar only.
 - Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 
