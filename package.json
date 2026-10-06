@@ -20,6 +20,7 @@
     "extensions/",
     "LICENSE",
     "README.md",
+    "VISION.md",
     "package.json",
     "media/"
   ],

@@ -1,7 +1,7 @@
 /**
  * Minimal footer — replaces pi's default footer with a clean status line:
  *
- *   ~/path/to/dir   main       (status1 | status2)  sonnet  12/128k    ⣿⣶⠀⠀⠀ ↻16:40
+ *   ~/path/to/dir   main        status1  status2  sonnet · 12/128k · ⣿⣶⠀⠀⠀↻16:40
  *
  * Settings are persisted in the agent directory (usually ~/.pi/agent)
  * settings.json under "minFooter".
@@ -29,6 +29,7 @@ interface Settings {
     showPath?: boolean;
     showModel?: boolean;
     showContext?: boolean;
+    powerlineSeparator?: boolean;
   };
 }
 
@@ -41,6 +42,7 @@ const DEFAULT_SETTINGS: FooterSettings = {
   showPath: true,
   showModel: true,
   showContext: true,
+  powerlineSeparator: true,
 };
 
 function settingsPath(): string {
@@ -127,56 +129,54 @@ function updateState(ctx: ExtensionContext, state: FooterState): void {
 // Keep quota and reset time together; shorten location/statuses before model/context.
 // All segment measurements use visible widths, including ANSI and wide characters.
 
-const SEGMENT_GAP = "  ";
-const QUOTA_GAP = "    ";
+const MODEL_GAP = " · ";
+const QUOTA_GAP = " · ";
 const LOCATION_GAP_WIDTH = 3;
-const FULL_QUOTA_WIDTH = 12;
-const COMPACT_QUOTA_WIDTH = 11;
 const MIN_TEXT_WIDTH = 4;
 const MIN_STATUS_WIDTH = 12;
 
 function buildLine(width: number, path: string, statuses: string, branch: string, model: string, context: string,
-  usage: (available: number) => string | null): string {
+  usage: (available: number, maxCells?: number) => string | null, statusSeparator: string, locationSeparator: string): string {
   if (width <= 0) return "";
-  let core = [model, context].filter(Boolean).join(SEGMENT_GAP);
-  let quota = usage(Math.min(FULL_QUOTA_WIDTH, width)) ?? "";
-  const availableQuotaWidth = width - visibleWidth(core) - QUOTA_GAP.length;
-  if (quota && visibleWidth(quota) > availableQuotaWidth) {
-    const compactWidth = Math.min(width, Math.max(COMPACT_QUOTA_WIDTH, availableQuotaWidth));
-    quota = usage(compactWidth) ?? "";
-  }
+  let core = [model, context].filter(Boolean).join(MODEL_GAP);
+  const quota = usage(width) ?? "";
   const quotaGapWidth = quota && core ? QUOTA_GAP.length : 0;
   const coreBudget = Math.max(0, width - visibleWidth(quota) - quotaGapWidth);
   if (quota && coreBudget < MIN_TEXT_WIDTH) {
     core = "";
-    quota = usage(Math.min(FULL_QUOTA_WIDTH, width)) ?? "";
   } else if (visibleWidth(core) > coreBudget) {
-    const modelGapWidth = model && context ? SEGMENT_GAP.length : 0;
+    const modelGapWidth = model && context ? MODEL_GAP.length : 0;
     const modelBudget = coreBudget - visibleWidth(context) - modelGapWidth;
     if (modelBudget > 0) {
-      core = [truncateToWidth(model, modelBudget, "..."), context].filter(Boolean).join(SEGMENT_GAP);
+      core = [truncateToWidth(model, modelBudget, "..."), context].filter(Boolean).join(MODEL_GAP);
     } else {
       core = truncateToWidth(context || model, coreBudget, "...");
     }
   }
   const protectedRight = [core, quota].filter(Boolean).join(QUOTA_GAP);
   const branchReservation = branch ? visibleWidth(branch) + LOCATION_GAP_WIDTH : 0;
-  const statusBudget = width - visibleWidth(protectedRight) - branchReservation - SEGMENT_GAP.length;
+  const statusBudget = width - visibleWidth(protectedRight) - branchReservation - visibleWidth(statusSeparator);
   let fittedStatuses = "";
   if (statusBudget >= MIN_STATUS_WIDTH) {
     fittedStatuses = statuses;
     if (visibleWidth(statuses) > statusBudget) {
-      fittedStatuses = truncateToWidth(statuses, statusBudget - 1, "...") + ")";
+      fittedStatuses = truncateToWidth(statuses, statusBudget, "...");
     }
   }
-  const right = [fittedStatuses, protectedRight].filter(Boolean).join(SEGMENT_GAP);
+  let right = [fittedStatuses, protectedRight].filter(Boolean).join(statusSeparator);
   const locationGapWidth = right ? LOCATION_GAP_WIDTH : 0;
   const leftBudget = Math.max(0, width - visibleWidth(right) - locationGapWidth);
   const fittedBranch = visibleWidth(branch) <= leftBudget ? branch : "";
-  const pathGapWidth = fittedBranch && path ? SEGMENT_GAP.length : 0;
+  const pathGapWidth = fittedBranch && path ? visibleWidth(locationSeparator) : 0;
   const pathBudget = leftBudget - visibleWidth(fittedBranch) - pathGapWidth;
   const fittedPath = pathBudget >= MIN_TEXT_WIDTH ? truncateToWidth(path, pathBudget, "...") : "";
-  const left = [fittedPath, fittedBranch].filter(Boolean).join(SEGMENT_GAP);
+  const left = [fittedPath, fittedBranch].filter(Boolean).join(locationSeparator);
+  if (quota) {
+    const spareWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right) - locationGapWidth);
+    const expandedQuota = usage(visibleWidth(quota) + spareWidth, 10) ?? quota;
+    const expandedCore = [core, expandedQuota].filter(Boolean).join(QUOTA_GAP);
+    right = [fittedStatuses, expandedCore].filter(Boolean).join(statusSeparator);
+  }
   return left + " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right))) + right;
 }
 
@@ -224,14 +224,17 @@ export default function (pi: ExtensionAPI) {
             ? [...footerData.getExtensionStatuses().values()].filter((s) => s.trim())
             : [];
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
+          const statusSeparator = config.powerlineSeparator ? theme.fg("dim", "  ") : " ";
           const line = buildLine(
             width,
             config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
-            skills.length ? theme.fg("dim", `(${skills.join(" | ")})`) : "",
+            skills.length ? statusSeparator + skills.map((s) => theme.fg("dim", s)).join(statusSeparator) : "",
             branch ? theme.fg("dim", ` ${branch}`) : "",
             config.showModel ? theme.bold(state.model) : "",
             config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
-            (available) => usageLimits.line(available, theme),
+            (available, maxCells = 5) => usageLimits.line(available, theme, maxCells),
+            statusSeparator,
+            config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
           );
           return [line];
         },

@@ -208,18 +208,27 @@ export class UsageLimits {
     }
   }
 
-  line(width: number, theme: Theme): string | null {
+  line(width: number, theme: Theme, maxCells = 10): string | null {
     const window = this.selectedWindow()?.[1];
-    if (!this.ctx || !window || width < (window.resetAt === null ? 1 : 6)) return null;
+    if (!this.ctx || !window) return null;
+    const now = Date.now();
     const date = window.resetAt === null ? null : new Date(window.resetAt);
-    const time = date ? `↻${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}` : "";
-    const cells = Math.min(5, Math.max(0, width - (time ? 7 : 0)));
+    const remaining = window.resetAt === null ? 0 : window.resetAt - now;
+    const day = 24 * 60 * 60 * 1000;
+    let time = date ? `↻${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}` : "";
+    if (remaining > 10 * day) {
+      time = `↻${Math.floor(remaining / day)}d`;
+    } else if (remaining > day) {
+      time = `↻${Math.floor(remaining / day)}d${Math.floor(remaining % day / (60 * 60 * 1000))}h`;
+    }
+    if (width < (time ? time.length : 1)) return null;
+    const cells = Math.min(maxCells, Math.max(0, width - time.length));
     const steps = Math.round(window.used / 100 * cells * 8);
     const filled = "⣿".repeat(Math.floor(steps / 8)) + ["", "⡀", "⣀", "⣄", "⣤", "⣦", "⣶", "⣷"][steps % 8];
     const empty = "⠀".repeat(cells - Math.ceil(steps / 8));
-    const stale = this.stale || (window.resetAt !== null && Date.now() >= window.resetAt);
+    const stale = this.stale || (window.resetAt !== null && now >= window.resetAt);
     const color = stale ? "dim" : window.used >= 92 ? "error" : window.used >= 85 ? "warning" : "success";
-    const bar = cells ? theme.fg(color, filled) + theme.fg("dim", empty) + (time ? " " : "") : "";
+    const bar = cells ? theme.fg(color, filled) + theme.fg("dim", empty) : "";
     return bar + theme.fg("dim", time);
   }
 }

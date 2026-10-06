@@ -66,7 +66,7 @@ function provider(statuses = new Map([['skill', '技能 ✅'], ['empty', '  ']])
 
 const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
-const hasQuota = (ui) => /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+ ↻\d\d:\d\d$/.test(stripAnsi(ui.component.render(120)[0]));
+const hasQuota = (ui) => /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+↻\d\d:\d\d$/.test(stripAnsi(ui.component.render(120)[0]));
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const quota = (used = 35, reset = Date.now() / 1000 + 7200) => ({ rate_limit: {
   primary_window: { used_percent: used, limit_window_seconds: 18000, reset_at: reset },
@@ -193,6 +193,99 @@ test('isolated settings preserve unrelated options and toggle/reload boundaries'
   assert.equal(on.unrelated, 7); assert.equal(on.minFooter.enabled, true);
 });
 
+test('reset labels use clock time, days/hours, then days only without overflowing', async (t) => {
+  const now = 1791200000000;
+  const hour = 60 * 60 * 1000;
+  const day = 24 * hour;
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now });
+  let reset = now;
+  fakeUsageFetch(t, () => Response.json(quota(35, reset / 1000)));
+  for (const [remaining, expected] of [
+    [day, null],
+    [day + 1, '↻1d0h'],
+    [day + 8 * hour + 59 * 60000, '↻1d8h'],
+    [10 * day, '↻10d0h'],
+    [10 * day + 1, '↻10d'],
+    [12 * day + 8 * hour, '↻12d'],
+  ]) {
+    reset = now + remaining;
+    const runtime = await installExtension();
+    const { ctx, ui } = codexContext();
+    await start(runtime, ctx);
+    await settle();
+    const line = stripAnsi(ui.component.render(120)[0]);
+    if (expected) assert.ok(line.endsWith(expected), line);
+    else {
+      const date = new Date(reset);
+      assert.ok(line.endsWith(`↻${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`), line);
+    }
+    for (let width = 0; width <= 120; width++) {
+      assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}, remaining=${remaining}`);
+    }
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+});
+
+test('quota bar grows from five to ten cells using spare columns', async (t) => {
+  fakeUsageFetch(t);
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showPath: false, showGitBranch: false, showSkills: false, showModel: false, showContext: false } }));
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  await start(runtime, ctx);
+  await settle();
+  for (const [width, cells] of [[11, 5], [14, 5], [15, 6], [16, 7], [17, 8], [18, 9], [19, 10], [120, 10]]) {
+    const line = stripAnsi(ui.component.render(width)[0]);
+    const bar = line.match(/[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+(?=↻)/)?.[0];
+    assert.equal(bar?.length, cells, `width=${width}`);
+    assert.ok(visibleWidth(line) <= width);
+  }
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻/);
+  assert.match(stripAnsi(ui.component.render(11)[0]), /⣿⣶⠀{3}↻/);
+  for (let width = 0; width <= 120; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
+  await emit(runtime, 'session_shutdown', ctx);
+});
+
+test('quota joins the model section with spaces around the dot', async (t) => {
+  fakeUsageFetch(t);
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  await start(runtime, ctx);
+  await settle();
+  assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12\/128k · [⠀⡀⣀⣄⣤⣦⣶⣷⣿]+/);
+  await emit(runtime, 'session_shutdown', ctx);
+});
+
+test('extension statuses are individual power tabs without footer-added wrappers', async () => {
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext({ footerProvider: provider(new Map([['a', '🧠 Karpathy'], ['b', '🪽 Icarus'], ['empty', ' ']])) });
+  await start(runtime, ctx);
+  const line = stripAnsi(ui.component.render(160)[0]);
+  assert.ok(line.includes(' 🧠 Karpathy  🪽 Icarus  test-model · 12/128k'), line);
+  assert.doesNotMatch(line, /[()|]/);
+  for (let width = 0; width <= 160; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
+  await emit(runtime, 'session_shutdown', ctx);
+});
+
+test('compact model separators and optional plain-space status fallback', async () => {
+  for (const powerlineSeparator of [true, false]) {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { powerlineSeparator } }));
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext({ footerProvider: provider(new Map([['a', 'status']])) });
+    await start(runtime, ctx);
+    const line = stripAnsi(ui.component.render(120)[0]);
+    assert.ok(line.includes(`${powerlineSeparator ? '  ' : ' '}status${powerlineSeparator ? '  ' : ' '}test-model · 12/128k`));
+    assert.match(line, /test-model · 12\/128k/);
+    assert.ok(line.includes(`project${powerlineSeparator ? '  ' : ' '} main`), line);
+    const noBranch = ui.factory(ui.tui, theme, provider(new Map(), null));
+    assert.doesNotMatch(stripAnsi(noBranch.render(120)[0]), //);
+    noBranch.dispose();
+    for (let width = 0; width <= 120; width++) {
+      assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
+    }
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+});
+
 test('default settings enable the footer; explicit disabled startup installs none', async () => {
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ unrelated: 'kept' }));
   const enabledRuntime = await installExtension();
@@ -219,17 +312,17 @@ test('rendering fits pathological widths, ANSI/Unicode status, and preserves mod
   const wide = component.render(160)[0];
   assert.match(wide, /模型/);
   assert.match(wide, / main/);
-  assert.match(stripAnsi(wide), /^~\/project\/child   main +\(技能 ✅ \| long status text\)  模型-red  12\/128k$/);
+  assert.match(stripAnsi(wide), /^~\/project\/child   main + 技能 ✅  long status text  模型-red · 12\/128k$/);
   assert.deepEqual(boldCalls.slice(-2), ['模型\u001b[31m-red\u001b[0m', '12/128k'], 'model/context retain bold theme styling');
   assert.match(wide, /\u001b\[1m/);
   assert.equal(visibleWidth(wide), 160, 'normal layout right-aligns and fills the available width');
-  const medium = stripAnsi(component.render(40)[0]);
+  const medium = stripAnsi(component.render(44)[0]);
   assert.doesNotMatch(medium, /long status text/, 'long statuses shorten before git');
-  assert.match(medium, /\(技能 ✅.*\.\.\.\)/);
+  assert.match(medium, / 技能 .*\.\.\./);
   assert.match(medium, / main/);
   assert.match(medium, /模型/);
-  assert.equal(visibleWidth(medium), 40, 'status-drop layout remains right-aligned');
-  assert.match(medium, /^ main +\(.*\) +模型/);
+  assert.equal(visibleWidth(medium), 44, 'status-drop layout remains right-aligned');
+  assert.match(medium, /^ main + .*  模型/);
   assert.match(medium, /12\/128k$/);
   const narrow = stripAnsi(component.render(20)[0]);
   assert.doesNotMatch(narrow, /|技能|long status/, 'git drops before model/context');
@@ -288,8 +381,8 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
   await start(runtime, ctx); await settle();
   const lines = ui.component.render(120).map(stripAnsi);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /project   main +\(技能 ✅\)  test-model/);
-  assert.match(lines[0], /test-model  12\/128k    ⣿⣶⠀⠀⠀ ↻16:40$/);
+  assert.match(lines[0], /project   main + 技能 ✅  test-model/);
+  assert.match(lines[0], /test-model · 12\/128k · ⣿{3}⣤⠀{6}↻16:40$/);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://chatgpt.com/backend-api/wham/usage');
   assert.equal(calls[0].init.headers['ChatGPT-Account-Id'], 'test-account');
@@ -303,7 +396,7 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
     assert.ok(visibleWidth(rendered[0]) <= width, `width=${width}`);
   }
   const narrow = stripAnsi(ui.component.render(32)[0]);
-  assert.match(narrow, /12\/128k    [⠀⡀⣀⣄⣤⣦⣶⣷⣿]{4} ↻16:40$/);
+  assert.match(narrow, /12\/128k · [⠀⡀⣀⣄⣤⣦⣶⣷⣿]{5}↻16:40$/);
   assert.doesNotMatch(narrow, /project|技能|/);
   assert.match(stripAnsi(ui.component.render(10)[0]), /↻16:40$/);
 });
@@ -322,7 +415,7 @@ test('fresh response headers postpone the four-minute endpoint fallback; malform
     'x-codex-secondary-used-percent': '95', 'x-codex-secondary-window-minutes': '10080',
     'x-codex-secondary-reset-at': String(Date.now() / 1000 + 604800),
   } });
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣿⣿⣿⣀/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{8}⣤/);
   t.mock.timers.tick(239999); await settle();
   assert.equal(calls.length, 1);
   await emit(runtime, 'after_provider_response', ctx, { headers: { 'x-codex-primary-used-percent': '' } });
@@ -349,7 +442,7 @@ test('Codex stream quota updates render without polling and ignore other provide
   await emit(runtime, 'provider_stream_event', ctx, { ...event, provider: 'anthropic' });
   assert.equal(hasQuota(ui), false);
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5} ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
 });
 
 test('provider switch cancels pending usage and discards late results, disable stops polling', async (t) => {
@@ -422,8 +515,8 @@ test('Braille fills bottom-up in eighth-cell steps with warning/error colors', a
       'X-Codex-Primary-Used-Percent': String(used), 'X-Codex-Primary-Window-Minutes': '300',
       'X-Codex-Primary-Reset-At': String(Date.now() / 1000 + 7200),
     } });
-    const line = ui.component.render(12)[0];
-    assert.match(stripAnsi(line), new RegExp(`^${filled}${empty} ↻\\d\\d:\\d\\d$`));
+    const line = ui.component.render(11)[0];
+    assert.match(stripAnsi(line), new RegExp(`^${filled}${empty}↻\\d\\d:\\d\\d$`));
     assert.ok(line.includes(theme.fg(color, filled)));
   }
 });
@@ -442,7 +535,7 @@ test('a passive quota update wins over an older endpoint request', async (t) => 
   } });
   assert.equal(calls[0].init.signal.aborted, true);
   resolveFetch(Response.json(quota(5))); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{5}/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{10}/);
 });
 
 test('reset triggers a fresh check, failed refresh dims cached usage without a retry loop', async (t) => {
@@ -453,17 +546,17 @@ test('reset triggers a fresh check, failed refresh dims cached usage without a r
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
   data = null;
   t.mock.timers.tick(60000); await settle();
   assert.equal(calls.length, 2);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   t.mock.timers.tick(239999); await settle();
   assert.equal(calls.length, 2);
   data = quota(0, Date.now() / 1000 + 18000);
   t.mock.timers.tick(1); await settle();
   assert.equal(calls.length, 3);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5} ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
 });
 
 test('usage request times out and retries later; effective custom origin or non-OAuth key is never sent', async (t) => {
@@ -499,11 +592,11 @@ test('failed credential resolution dims the last known quota rather than present
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: false, error: 'OAuth refresh temporarily unavailable' });
   t.mock.timers.tick(240000); await settle();
   assert.equal(calls.length, 1);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
 });
 
 test('Pi missing-credential result clears cached quota and restored credentials recover', async (t) => {
@@ -523,7 +616,7 @@ test('Pi missing-credential result clears cached quota and restored credentials 
   t.mock.timers.tick(240000); await settle();
   assert.equal(calls.length, 2);
   assert.equal(hasQuota(ui), true);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
 });
 
 test('never-settling credential lookup times out and releases the next fallback attempt', async (t) => {
@@ -558,10 +651,10 @@ test('credential resolution after timeout cannot fetch or overwrite a newer succ
   t.mock.timers.tick(5000); await settle();
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 1, 'a fresh attempt succeeds after the old auth times out');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3} ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d$/);
   resolveOld(validAuth); await settle();
   assert.equal(calls.length, 1, 'late authentication must not issue a fetch');
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
 });
 
 test('switching provider during authentication ignores both late resolution and late rejection', async (t) => {
@@ -578,7 +671,7 @@ test('switching provider during authentication ignores both late resolution and 
   await emit(runtime, 'model_select', ctx); await settle();
   resolveOld(validAuth); await settle();
   assert.equal(calls.length, 1);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀ ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d$/);
   let rejectOld;
   ctx.model = { id: 'codex', provider: 'openai-codex', baseUrl: 'https://chatgpt.com/backend-api' };
   ctx.modelRegistry.getApiKeyAndHeaders = () => new Promise((_resolve, reject) => { rejectOld = reject; });
@@ -604,12 +697,12 @@ test('pending JSON consumption times out, dims cache, and ignores late bodies af
   t.mock.timers.tick(240000); await settle();
   t.mock.timers.tick(5000); await settle();
   assert.equal(calls[1].init.signal.aborted, true);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 3);
   resolveBody(quota(100)); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀ ↻\d\d:\d\d$/);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d$/);
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣿⣿⣿⣿')));
 });
 
 test('provider switching during JSON consumption cannot publish the old body', async (t) => {
@@ -638,11 +731,11 @@ test('malformed HTTP 200 dims a valid cached quota and a later valid snapshot re
   data = { rate_limit: { primary_window: { used_percent: null } } };
   t.mock.timers.tick(240000); await settle();
   assert.equal(stripAnsi(ui.component.render(120)[0]), cached);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   data = quota(70);
   t.mock.timers.tick(240000); await settle();
   assert.equal(calls.length, 3);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣿⣿⣿⣿')));
 });
 
 for (const providerName of ['openai-codex', 'anthropic']) {
@@ -668,14 +761,14 @@ for (const providerName of ['openai-codex', 'anthropic']) {
         'x-codex-secondary-used-percent': '96', 'x-codex-secondary-window-minutes': '10080',
         'x-codex-secondary-reset-at': String(reset + 604800),
       } : { 'anthropic-ratelimit-unified-7d-utilization': '0.96' } });
-      assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3} ↻14:00$/);
+      assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00$/);
       assert.equal(calls.length, 1);
     }
     t.mock.timers.tick(1); await settle();
     assert.equal(calls.length, 2, 'longer-window signals cannot postpone short-window fallback');
     await emit(runtime, 'after_provider_response', ctx, { headers: providerName === 'openai-codex'
       ? { 'x-codex-primary-used-percent': '70' } : { 'anthropic-ratelimit-unified-5h-utilization': '0.70' } });
-    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀ ↻14:00$/,
+    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:00$/,
       'usage-only updates retain compatible duration and reset metadata');
   });
 }
@@ -692,12 +785,12 @@ test('Codex partial streams merge stable window keys and preserve omitted short-
     secondary: { used_percent: 96, window_minutes: 10080 },
   } } };
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3} ↻14:00$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00$/);
   t.mock.timers.tick(60000); await settle();
   assert.equal(calls.length, 2);
   event.data.rate_limits = { primary: { used_percent: 70 } };
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀ ↻14:04$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:04$/);
 });
 
 test('weekly-only passive signals do not cancel an in-flight short-window fallback or undim failed cache', async (t) => {
@@ -716,7 +809,7 @@ test('weekly-only passive signals do not cancel an in-flight short-window fallba
   assert.equal(calls[1].init.signal.aborted, false, 'the selected short window still needs its refresh');
   resolveRefresh(new Response(null, { status: 503 })); await settle();
   await emit(runtime, 'after_provider_response', ctx, weekly);
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
 });
 
 test('endpoint snapshots replace passive windows and status-only passive responses manufacture no usage', async (t) => {
@@ -729,7 +822,7 @@ test('endpoint snapshots replace passive windows and status-only passive respons
   await start(runtime, ctx); await settle();
   data = { rate_limit: { secondary_window: { used_percent: 100, limit_window_seconds: 604800 } } };
   t.mock.timers.tick(240000); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{5}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{10}$/);
   data = { rate_limit: null };
   t.mock.timers.tick(240000); await settle();
   assert.equal(hasQuota(ui), false);
@@ -776,7 +869,7 @@ test('explicit no-limits snapshots clear cached quota; malformed durations retai
     data = missing;
     t.mock.timers.tick(240000); await settle();
     assert.equal(hasQuota(ui), !absent);
-    if (!absent) assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⠀'.repeat(5))));
+    if (!absent) assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⠀'.repeat(10))));
     data = quota(0);
     t.mock.timers.tick(240000); await settle();
     assert.equal(hasQuota(ui), true, 'zero usage remains a real quota, distinct from no limits');
@@ -833,10 +926,10 @@ test('switching away and back cannot restore an old provider result; only curren
   assert.equal(hasQuota(ui), false, 'switching back waits for current data');
   resolveCurrent(Response.json(quota(70))); await settle();
   resolveOld(Response.json(quota(100))); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}/);
   t.mock.timers.tick(240000); await settle();
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀/);
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣿⣿⣿⣿')));
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}/);
   ctx.model.provider = 'ollama';
   await emit(runtime, 'model_select', ctx);
   assert.equal(hasQuota(ui), false, 'dimmed data also disappears on switch');
@@ -881,7 +974,7 @@ test('upstream rolling-quota providers render only their short window and use th
     ctx.model = { id: 'test-model', provider: providerName, baseUrl };
     await start(runtime, ctx); await settle();
     assert.equal(calls.at(-1)?.url, endpoint);
-    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3} ↻\d\d:\d\d$/);
+    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d$/);
     assert.equal(calls.at(-1).init.headers.Authorization, 'Bearer provider-token');
   }
 });
@@ -897,14 +990,14 @@ test('Gemini uses selected model quota, omits unknown reset time, and refreshes 
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'gemini-access' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /↻/);
   assert.equal(calls[0].url, 'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota');
   assert.equal(calls[0].init.method, 'POST');
   ctx.model = { ...ctx.model, id: 'gemini-flash' };
   await emit(runtime, 'model_select', ctx); await settle();
   assert.equal(calls.length, 2);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{4}⣤$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{9}⠀$/);
 });
 
 test('switches between supported providers cancel old requests and never display their late results', async (t) => {
@@ -920,7 +1013,7 @@ test('switches between supported providers cancel old requests and never display
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'go-key' });
   await emit(runtime, 'model_select', ctx); await settle();
   resolveOld(Response.json(quota(100))); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5} ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
 });
 
 test('Anthropic response headers provide accurate small percentages without fractional guessing', async (t) => {
@@ -933,12 +1026,12 @@ test('Anthropic response headers provide accurate small percentages without frac
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'claude-token' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5} ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5}↻\d\d:\d\d$/);
   await emit(runtime, 'after_provider_response', ctx, { headers: {
     'anthropic-ratelimit-unified-5h-utilization': '0.35', 'anthropic-ratelimit-unified-5h-reset': String(Date.now() / 1000 + 7200),
     'anthropic-ratelimit-unified-7d-utilization': '0.95',
   } });
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3} ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d$/);
   t.mock.timers.tick(239999); await settle();
   assert.equal(calls.length, 1);
 });
@@ -958,10 +1051,10 @@ test('Copilot monthly quotas use GitHub login token, ignore unlimited buckets, a
   await start(runtime, ctx); await settle();
   assert.equal(calls[0].url, 'https://api.github.com/copilot_internal/user');
   assert.equal(calls[0].init.headers.Authorization, 'token github-login-token');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3} ↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻30d$/);
   data = { quota_snapshots: { premium_interactions: { percent_remaining: 65 } } };
   t.mock.timers.tick(240000); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
   data = { quota_snapshots: { premium_interactions: { percent_remaining: 65, unlimited: true } } };
   t.mock.timers.tick(240000); await settle();
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]/);
@@ -977,13 +1070,13 @@ test('provider API errors and malformed numbers dim cached quota; custom origins
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'minimax-key' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
   data = { base_resp: { status_code: 1004, status_msg: 'auth failed' } };
   t.mock.timers.tick(240000); await settle();
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   data = { model_remains: [{ current_interval_remaining_percent: null }] };
   t.mock.timers.tick(240000); await settle();
-  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣶')));
+  assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   const before = calls.length;
   for (const provider of ['anthropic', 'github-copilot', 'google-gemini-cli', 'minimax', 'minimax-cn', 'kimi-coding', 'opencode-go']) {
     ctx.model = { id: 'other', provider, baseUrl: 'https://custom.example.com/api' };
@@ -1005,5 +1098,5 @@ test('Kimi accepts the actual Pi OAuth bearer-header contract', async (t) => {
   await start(runtime, ctx); await settle();
   assert.equal(calls[0]?.url, 'https://api.kimi.com/coding/v1/usages');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer kimi-oauth-access');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿⣶⠀{3}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
 });

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `minFooter.powerlineSeparator` (default `true`); set to `false` for a single-space fallback when the terminal font lacks Powerline glyphs
+
+### Changed
+
+- Keep README focused on installation and daily use; move design constraints, developer guidance, and provider details into `VISION.md`
+- Separate directory and git branch with ``; render each extension status as its own `` tab, without footer-added parentheses or pipes
+- Group model, context, and quota with spaced ` · ` separators
+- Join the quota bar and reset label without an intervening space
+- Show reset labels as local `↻HH:mm` through 24 hours, remaining whole days/hours above 24 hours (e.g., `↻1d8h`), and whole days above 10 days (e.g., `↻12d`)
+- Grow the quota bar from five to ten cells using spare footer columns, improving steps from 2.5% to 1.25% without shortening other fields; retain the smaller fallback on very narrow terminals
+
 ## [0.2.0] - 2026-10-05
 
 ### Added
