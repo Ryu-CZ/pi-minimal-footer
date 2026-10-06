@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-06
+
 ### Changed
 
 - Rename provider quota terminology to subscription usage in documentation, code, and tests; behavior is unchanged
@@ -145,7 +147,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.1.3...v0.2.0
