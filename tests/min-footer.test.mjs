@@ -19,6 +19,9 @@ const { visibleWidth } = await import(join(tuiRoot, 'index.js'));
 
 const theme = getThemeByName('dark');
 
+// Existing lifecycle tests exercise the nominal cadence; jitter tests override this.
+test.beforeEach((t) => { t.mock.method(Math, 'random', () => 0.5); });
+
 function makeContext({ cwd = join(agentDir, 'project'), mode = 'tui', hasUI = mode === 'tui', model = 'test-model', usage = { tokens: 12000, contextWindow: 128000 }, sessionManager = SessionManager.inMemory(cwd), footerProvider = provider(), tui = { requestRender() {} }, renderTheme = theme } = {}) {
   let factory;
   let component;
@@ -447,6 +450,32 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
   assert.match(stripAnsi(ui.component.render(10)[0]), /↻16:40$/);
 });
 
+for (const [random, delay] of [[0, 210000], [0.5, 240000], [1 - Number.EPSILON, 270000]]) {
+  test(`usage fallback jitter schedules ${delay}ms and retains its deadline for unrelated updates`, async (t) => {
+    t.mock.method(Math, 'random', () => random);
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+    const calls = fakeUsageFetch(t);
+    const runtime = await installExtension();
+    const { ctx } = codexContext();
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx); await settle();
+    t.mock.timers.tick(60000);
+    t.mock.method(Math, 'random', () => 0.5);
+    await emit(runtime, 'after_provider_response', ctx, { headers: {
+      'x-codex-secondary-used-percent': '95', 'x-codex-secondary-window-minutes': '10080',
+    } });
+    t.mock.timers.tick(delay - 60001); await settle();
+    assert.equal(calls.length, 1);
+    t.mock.timers.tick(1); await settle();
+    assert.equal(calls.length, 2);
+    // The next attempt samples again instead of retaining the previous jitter.
+    t.mock.timers.tick(239999); await settle();
+    assert.equal(calls.length, 2);
+    t.mock.timers.tick(1); await settle();
+    assert.equal(calls.length, 3);
+  });
+}
+
 test('fresh response headers postpone the four-minute endpoint fallback; malformed data does not', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const calls = fakeUsageFetch(t);
@@ -585,6 +614,7 @@ test('a passive usage update wins over an older endpoint request', async (t) => 
 });
 
 test('reset triggers a fresh check, failed refresh dims cached usage without a retry loop', async (t) => {
+  t.mock.method(Math, 'random', () => 1 - Number.EPSILON);
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   let data = usagePayload(35, Date.now() / 1000 + 60);
   const calls = fakeUsageFetch(t, () => data ? Response.json(data) : new Response(null, { status: 429 }));
@@ -594,6 +624,7 @@ test('reset triggers a fresh check, failed refresh dims cached usage without a r
   await start(runtime, ctx); await settle();
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
   data = null;
+  t.mock.method(Math, 'random', () => 0.5);
   t.mock.timers.tick(60000); await settle();
   assert.equal(calls.length, 2);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));

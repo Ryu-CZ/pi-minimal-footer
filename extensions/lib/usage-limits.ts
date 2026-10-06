@@ -6,6 +6,7 @@ import { parseUsageWindows, record, shortest, supportedOrigin, usageRequest, win
 import type { UsageWindow } from "./usage-providers.js";
 
 const REFRESH_MS = 4 * 60_000;
+const REFRESH_JITTER_MS = REFRESH_MS / 8;
 const REQUEST_TIMEOUT_MS = 5000;
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -115,6 +116,7 @@ export class UsageLimits {
   private updatedAt: Record<string, number> = {};
   private stale = false;
   private attemptedAt = 0;
+  private refreshDelay = REFRESH_MS;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private request: AbortController | null = null;
 
@@ -178,9 +180,14 @@ export class UsageLimits {
       // Only a response for the displayed window supersedes its background refresh.
       this.cancelRequest();
       this.stale = false;
+      this.randomizeRefresh();
     }
     this.schedule();
     this.render();
+  }
+
+  private randomizeRefresh(): void {
+    this.refreshDelay = REFRESH_MS + (Math.random() * 2 - 1) * REFRESH_JITTER_MS;
   }
 
   private schedule(): void {
@@ -188,7 +195,8 @@ export class UsageLimits {
     this.timer = null;
     if (!this.ctx || this.request) return;
     const selected = this.selectedWindow();
-    let next = Math.max(this.attemptedAt, selected ? this.updatedAt[selected[0]] : 0) + REFRESH_MS;
+    // Keep the sampled deadline when unrelated windows reschedule the timer.
+    let next = Math.max(this.attemptedAt, selected ? this.updatedAt[selected[0]] : 0) + this.refreshDelay;
     const resetAt = selected?.[1].resetAt;
     if (resetAt != null && resetAt > this.attemptedAt) next = Math.min(next, resetAt);
     this.timer = setTimeout(() => { this.timer = null; void this.poll(); }, Math.max(1, next - Date.now()));
@@ -205,6 +213,7 @@ export class UsageLimits {
     // Identity checks below keep late responses from restoring a replaced provider's usage.
     this.request = controller;
     this.attemptedAt = Date.now();
+    this.randomizeRefresh();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     timeout.unref();
     try {

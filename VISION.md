@@ -55,7 +55,7 @@ Reuse Pi's selected-provider credentials. Copilot uses the GitHub login token fr
 ### Refresh and failure behavior
 
 - Consume passive Codex response headers/stream events and Claude quota headers when available.
-- Otherwise fetch on startup/provider switch, then every four minutes without a fresh response update; also refresh at the reported reset time.
+- Otherwise fetch on startup/provider switch, then roughly every four minutes without a fresh response update. Sample independent uniform ±⅛ jitter (3.5–4.5 minutes) for each attempt or fresh displayed-window update to spread fallback requests across sessions. Keep that deadline across unrelated window updates; a reported reset time still triggers an earlier refresh.
 - Merge partial windows. A weekly-only signal must not replace a cached shorter window or postpone its refresh.
 - Bound authentication, fetch, and response-body parsing by a shared five-second timeout. Release stalled work so polling can recover.
 - Provider switches clear usage immediately, cancel pending work, and invalidate late results. Gemini model switches also refresh model-specific usage.
