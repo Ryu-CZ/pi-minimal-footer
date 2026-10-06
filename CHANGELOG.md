@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rename provider quota terminology to subscription usage in documentation, code, and tests; behavior is unchanged
+
 ## [0.3.1] - 2026-10-06
 
 ### Fixed
