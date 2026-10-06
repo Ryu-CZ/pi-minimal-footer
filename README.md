@@ -9,11 +9,7 @@
 
 An opinionated, compact one-line footer for [Pi](https://github.com/earendil-works/pi).
 
-```text
-~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42/200k · ⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h
-```
-
-Path and branch on the left; extension statuses, model, context, and provider quota on the right. Shrinks to fit narrow terminals. Interactive terminal UI only.
+Path and branch on the left; extension statuses, model, context, and subscription usage bar on the right. Shrinks to fit narrow terminals. Interactive terminal UI only.
 
 ![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42/200k · ⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h](media/github-preview.png)
 
@@ -57,15 +53,15 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` also needs a compatible font; hide it with `showGitBranch: false` if needed.
 - Context `42/200k` means tokens used / context window. `?` means Pi has not reported usage yet, including immediately after compaction.
 
-## Reading quota
+## Reading subscription usage
 
-`⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h` shows **account quota used**, not context usage.
+`⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h` shows **subscription allowance used**, not context usage.
 
 - Bar: 5–10 cells, expanding into spare space; green below 85%, amber from 85%, red from 92%. Dim means cached after a refresh failure. Very narrow terminals may show fewer cells or only the reset label.
 - Reset: local `↻HH:mm` through 24 hours; whole days/hours above 24 hours (`↻1d8h`); whole days above 10 days (`↻12d`). Remaining durations round down. No reset reported means bar only.
-- Shows the shortest available quota window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide quota. Custom proxy endpoints are not polled.
+- Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 
-Supported adapters: **OpenAI Codex, Claude OAuth, GitHub Copilot, Gemini CLI, MiniMax, Kimi Coding, and OpenCode Go**. Uses Pi's existing credentials; ordinary Claude API keys do not expose subscription quota. Provider availability varies; authenticated endpoints remain unverified live.
+Supported adapters: **OpenAI Codex, Claude OAuth, GitHub Copilot, Gemini CLI, MiniMax, Kimi Coding, and OpenCode Go**. Uses Pi's existing credentials; ordinary Claude API keys do not expose subscription usage. Provider availability varies; authenticated endpoints remain unverified live.
 
 ## Development & design
 

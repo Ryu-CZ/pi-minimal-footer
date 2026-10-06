@@ -66,9 +66,9 @@ function provider(statuses = new Map([['skill', '技能 ✅'], ['empty', '  ']])
 
 const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
-const hasQuota = (ui) => /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+↻\d\d:\d\d$/.test(stripAnsi(ui.component.render(120)[0]));
+const hasUsageBar = (ui) => /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+↻\d\d:\d\d$/.test(stripAnsi(ui.component.render(120)[0]));
 const settle = () => new Promise((resolve) => setImmediate(resolve));
-const quota = (used = 35, reset = Date.now() / 1000 + 7200) => ({ rate_limit: {
+const usagePayload = (used = 35, reset = Date.now() / 1000 + 7200) => ({ rate_limit: {
   primary_window: { used_percent: used, limit_window_seconds: 18000, reset_at: reset },
   secondary_window: { used_percent: 95, limit_window_seconds: 604800, reset_at: reset + 604800 },
 } });
@@ -80,7 +80,7 @@ function codexContext(options) {
   fixture.ctx.modelRegistry = { getApiKeyAndHeaders: async () => ({ ok: true, apiKey: `header.${payload}.signature` }) };
   return fixture;
 }
-function fakeUsageFetch(t, response = () => Response.json(quota())) {
+function fakeUsageFetch(t, response = () => Response.json(usagePayload())) {
   const original = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (url, init) => { calls.push({ url, init }); return response(); };
@@ -208,7 +208,7 @@ test('invalid settings roots fall back to defaults and remain toggleable', async
 });
 
 for (const replacement of [undefined, () => ({ render: () => ['other footer'], dispose() {} })]) {
-  test(`model selection cannot restart quota after ${replacement ? 'replacement' : 'removal'} of the footer`, async (t) => {
+  test(`model selection cannot restart usage after ${replacement ? 'replacement' : 'removal'} of the footer`, async (t) => {
     t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
     const calls = fakeUsageFetch(t);
     const runtime = await installExtension();
@@ -230,8 +230,8 @@ for (const replacement of [undefined, () => ({ render: () => ['other footer'], d
 
     await runtime.commands.get('minfooter').handler('on', ctx);
     await settle();
-    assert.equal(calls.length, 2, 'explicit reinstallation restores quota polling');
-    assert.ok(hasQuota(ui));
+    assert.equal(calls.length, 2, 'explicit reinstallation restores usage polling');
+    assert.ok(hasUsageBar(ui));
     t.mock.timers.tick(240000);
     await settle();
     assert.equal(calls.length, 3, 'reinstalled footer continues periodic polling');
@@ -244,7 +244,7 @@ test('reset labels use clock time, days/hours, then days only without overflowin
   const day = 24 * hour;
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now });
   let reset = now;
-  fakeUsageFetch(t, () => Response.json(quota(35, reset / 1000)));
+  fakeUsageFetch(t, () => Response.json(usagePayload(35, reset / 1000)));
   for (const [remaining, expected] of [
     [day, null],
     [day + 1, '↻1d0h'],
@@ -271,7 +271,7 @@ test('reset labels use clock time, days/hours, then days only without overflowin
   }
 });
 
-test('quota bar grows from five to ten cells using spare columns', async (t) => {
+test('usage bar grows from five to ten cells using spare columns', async (t) => {
   fakeUsageFetch(t);
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showPath: false, showGitBranch: false, showSkills: false, showModel: false, showContext: false } }));
   const runtime = await installExtension();
@@ -286,12 +286,12 @@ test('quota bar grows from five to ten cells using spare columns', async (t) => 
   }
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻/);
   assert.match(stripAnsi(ui.component.render(11)[0]), /⣿⣶⠀{3}↻/);
-  assert.match(stripAnsi(ui.component.render(16)[0]), /^[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{10}↻\d\d:\d\d$/, 'quota-only footer uses every available column');
+  assert.match(stripAnsi(ui.component.render(16)[0]), /^[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{10}↻\d\d:\d\d$/, 'usage-only footer uses every available column');
   for (let width = 0; width <= 120; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
   await emit(runtime, 'session_shutdown', ctx);
 });
 
-test('quota joins the model section with spaces around the dot', async (t) => {
+test('usage joins the model section with spaces around the dot', async (t) => {
   fakeUsageFetch(t);
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
@@ -418,7 +418,7 @@ test('home abbreviation is boundary-safe and exact home is shortened', async () 
 test('Codex renders only shortest window as Braille and local reset time, fitting all widths', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date(2026, 9, 5, 12, 0).getTime() });
   const reset = new Date(2026, 9, 5, 16, 40).getTime() / 1000;
-  const data = quota(35, reset);
+  const data = usagePayload(35, reset);
   [data.rate_limit.primary_window, data.rate_limit.secondary_window] = [data.rate_limit.secondary_window, data.rate_limit.primary_window];
   const calls = fakeUsageFetch(t, () => Response.json(data));
   const runtime = await installExtension();
@@ -472,13 +472,13 @@ test('fresh response headers postpone the four-minute endpoint fallback; malform
   assert.equal(calls.length, 2);
 });
 
-test('Codex stream quota updates render without polling and ignore other providers', async (t) => {
+test('Codex stream usage updates render without polling and ignore other providers', async (t) => {
   fakeUsageFetch(t, () => new Response(null, { status: 503 }));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.equal(hasQuota(ui), false);
+  assert.equal(hasUsageBar(ui), false);
   const event = { provider: 'openai-codex', model: ctx.model.id, api: 'openai-codex-responses', data: {
     type: 'codex.rate_limits', rate_limits: {
       primary: { used_percent: 0, window_minutes: 300, reset_at: Date.now() / 1000 + 7200 },
@@ -486,7 +486,7 @@ test('Codex stream quota updates render without polling and ignore other provide
     },
   } };
   await emit(runtime, 'provider_stream_event', ctx, { ...event, provider: 'anthropic' });
-  assert.equal(hasQuota(ui), false);
+  assert.equal(hasUsageBar(ui), false);
   await emit(runtime, 'provider_stream_event', ctx, event);
   assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
 });
@@ -502,8 +502,8 @@ test('provider switch cancels pending usage and discards late results, disable s
   ctx.model.provider = 'anthropic';
   await emit(runtime, 'model_select', ctx);
   assert.equal(calls[0].init.signal.aborted, true);
-  resolveFetch(Response.json(quota())); await settle();
-  assert.equal(hasQuota(ui), false);
+  resolveFetch(Response.json(usagePayload())); await settle();
+  assert.equal(hasUsageBar(ui), false);
   t.mock.timers.tick(480000); await settle();
   assert.equal(calls.length, 1);
   ctx.model.provider = 'openai-codex';
@@ -511,7 +511,7 @@ test('provider switch cancels pending usage and discards late results, disable s
   assert.equal(calls.length, 2);
   await runtime.commands.get('minfooter').handler('off', ctx);
   assert.equal(calls[1].init.signal.aborted, true);
-  resolveFetch(Response.json(quota())); await settle();
+  resolveFetch(Response.json(usagePayload())); await settle();
   t.mock.timers.tick(480000); await settle();
   assert.equal(calls.length, 2);
 });
@@ -523,10 +523,10 @@ test('invalid, non-TUI and custom-origin Codex usage is omitted; weekly-only usa
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.equal(hasQuota(ui), false);
+  assert.equal(hasUsageBar(ui), false);
   data = { rate_limit: { primary_window: { used_percent: 20, limit_window_seconds: 604800, reset_at: 1791200000 } } };
   await start(runtime, ctx); await settle();
-  assert.equal(hasQuota(ui), true);
+  assert.equal(hasUsageBar(ui), true);
   const before = calls.length;
   ctx.model.baseUrl = 'https://example.com/backend-api';
   await start(runtime, ctx); await settle();
@@ -567,7 +567,7 @@ test('Braille fills bottom-up in eighth-cell steps with warning/error colors', a
   }
 });
 
-test('a passive quota update wins over an older endpoint request', async (t) => {
+test('a passive usage update wins over an older endpoint request', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   let resolveFetch;
   const calls = fakeUsageFetch(t, () => new Promise((resolve) => { resolveFetch = resolve; }));
@@ -580,13 +580,13 @@ test('a passive quota update wins over an older endpoint request', async (t) => 
     'x-codex-primary-reset-at': String(Date.now() / 1000 + 7200),
   } });
   assert.equal(calls[0].init.signal.aborted, true);
-  resolveFetch(Response.json(quota(5))); await settle();
+  resolveFetch(Response.json(usagePayload(5))); await settle();
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{10}/);
 });
 
 test('reset triggers a fresh check, failed refresh dims cached usage without a retry loop', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
-  let data = quota(35, Date.now() / 1000 + 60);
+  let data = usagePayload(35, Date.now() / 1000 + 60);
   const calls = fakeUsageFetch(t, () => data ? Response.json(data) : new Response(null, { status: 429 }));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
@@ -599,7 +599,7 @@ test('reset triggers a fresh check, failed refresh dims cached usage without a r
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   t.mock.timers.tick(239999); await settle();
   assert.equal(calls.length, 2);
-  data = quota(0, Date.now() / 1000 + 18000);
+  data = usagePayload(0, Date.now() / 1000 + 18000);
   t.mock.timers.tick(1); await settle();
   assert.equal(calls.length, 3);
   assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
@@ -620,7 +620,7 @@ test('usage request times out and retries later; effective custom origin or non-
   await start(runtime, ctx); await settle();
   t.mock.timers.tick(5000); await settle();
   assert.equal(calls[0].signal.aborted, true);
-  assert.equal(hasQuota(ui), false);
+  assert.equal(hasUsageBar(ui), false);
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 2);
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'custom-secret', baseUrl: 'https://example.com/api' });
@@ -631,7 +631,7 @@ test('usage request times out and retries later; effective custom origin or non-
   assert.equal(calls.length, 2);
 });
 
-test('failed credential resolution dims the last known quota rather than presenting it as fresh', async (t) => {
+test('failed credential resolution dims the last known usage rather than presenting it as fresh', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const calls = fakeUsageFetch(t);
   const runtime = await installExtension();
@@ -645,7 +645,7 @@ test('failed credential resolution dims the last known quota rather than present
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
 });
 
-test('Pi missing-credential result clears cached quota and restored credentials recover', async (t) => {
+test('Pi missing-credential result clears cached usage and restored credentials recover', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const calls = fakeUsageFetch(t);
   const runtime = await installExtension();
@@ -653,15 +653,15 @@ test('Pi missing-credential result clears cached quota and restored credentials 
   const validAuth = ctx.modelRegistry.getApiKeyAndHeaders;
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.equal(hasQuota(ui), true);
+  assert.equal(hasUsageBar(ui), true);
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: false, error: 'No API key found for "openai-codex"' });
   t.mock.timers.tick(240000); await settle();
   assert.equal(calls.length, 1, 'missing credentials must not send a usage request');
-  assert.equal(hasQuota(ui), false, 'missing credentials clear rather than dim the old bar');
+  assert.equal(hasUsageBar(ui), false, 'missing credentials clear rather than dim the old bar');
   ctx.modelRegistry.getApiKeyAndHeaders = validAuth;
   t.mock.timers.tick(240000); await settle();
   assert.equal(calls.length, 2);
-  assert.equal(hasQuota(ui), true);
+  assert.equal(hasUsageBar(ui), true);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
 });
 
@@ -679,7 +679,7 @@ test('never-settling credential lookup times out and releases the next fallback 
   t.mock.timers.tick(235000); await settle();
   assert.equal(lookups, 2, 'timed-out authentication must release the active request');
   assert.equal(calls.length, 0);
-  assert.equal(hasQuota(ui), false);
+  assert.equal(hasUsageBar(ui), false);
 });
 
 test('credential resolution after timeout cannot fetch or overwrite a newer successful attempt', async (t) => {
@@ -726,7 +726,7 @@ test('switching provider during authentication ignores both late resolution and 
   await emit(runtime, 'model_select', ctx);
   rejectOld(new Error('late auth failure')); await settle();
   assert.equal(calls.length, 1);
-  assert.equal(hasQuota(ui), false);
+  assert.equal(hasUsageBar(ui), false);
 });
 
 test('pending JSON consumption times out, dims cache, and ignores late bodies after recovery', async (t) => {
@@ -735,7 +735,7 @@ test('pending JSON consumption times out, dims cache, and ignores late bodies af
   let responses = 0;
   const calls = fakeUsageFetch(t, () => ++responses === 2
     ? { ok: true, json: () => new Promise((resolve) => { resolveBody = resolve; }) }
-    : Response.json(quota(responses === 1 ? 35 : 70)));
+    : Response.json(usagePayload(responses === 1 ? 35 : 70)));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
@@ -746,7 +746,7 @@ test('pending JSON consumption times out, dims cache, and ignores late bodies af
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 3);
-  resolveBody(quota(100)); await settle();
+  resolveBody(usagePayload(100)); await settle();
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d$/);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣿⣿⣿⣿')));
 });
@@ -761,13 +761,13 @@ test('provider switching during JSON consumption cannot publish the old body', a
   ctx.model.provider = 'ollama';
   await emit(runtime, 'model_select', ctx);
   assert.equal(calls[0].init.signal.aborted, true);
-  resolveBody(quota(100)); await settle();
-  assert.equal(hasQuota(ui), false);
+  resolveBody(usagePayload(100)); await settle();
+  assert.equal(hasUsageBar(ui), false);
 });
 
-test('malformed HTTP 200 dims a valid cached quota and a later valid snapshot recovers', async (t) => {
+test('malformed HTTP 200 dims valid cached usage and a later valid snapshot recovers', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
-  let data = quota();
+  let data = usagePayload();
   const calls = fakeUsageFetch(t, () => Response.json(data));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
@@ -778,7 +778,7 @@ test('malformed HTTP 200 dims a valid cached quota and a later valid snapshot re
   t.mock.timers.tick(240000); await settle();
   assert.equal(stripAnsi(ui.component.render(120)[0]), cached);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
-  data = quota(70);
+  data = usagePayload(70);
   t.mock.timers.tick(240000); await settle();
   assert.equal(calls.length, 3);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣿⣿⣿⣿')));
@@ -788,7 +788,7 @@ for (const providerName of ['openai-codex', 'anthropic']) {
   test(`${providerName} weekly-only passive headers retain the short window and its fallback deadline`, async (t) => {
     t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date(2026, 9, 5, 12, 0).getTime() });
     const reset = Date.now() / 1000 + 7200;
-    const calls = fakeUsageFetch(t, () => Response.json(providerName === 'openai-codex' ? quota(35, reset) : {
+    const calls = fakeUsageFetch(t, () => Response.json(providerName === 'openai-codex' ? usagePayload(35, reset) : {
       five_hour: { utilization: 35, resets_at: new Date(reset * 1000).toISOString() },
       seven_day: { utilization: 95, resets_at: new Date((reset + 604800) * 1000).toISOString() },
     }));
@@ -843,7 +843,7 @@ test('weekly-only passive signals do not cancel an in-flight short-window fallba
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   let resolveRefresh;
   let responses = 0;
-  const calls = fakeUsageFetch(t, () => ++responses === 1 ? Response.json(quota())
+  const calls = fakeUsageFetch(t, () => ++responses === 1 ? Response.json(usagePayload())
     : new Promise((resolve) => { resolveRefresh = resolve; }));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
@@ -860,7 +860,7 @@ test('weekly-only passive signals do not cancel an in-flight short-window fallba
 
 test('endpoint snapshots replace passive windows and status-only passive responses manufacture no usage', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
-  let data = quota();
+  let data = usagePayload();
   fakeUsageFetch(t, () => Response.json(data));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
@@ -871,42 +871,42 @@ test('endpoint snapshots replace passive windows and status-only passive respons
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{10}$/);
   data = { rate_limit: null };
   t.mock.timers.tick(240000); await settle();
-  assert.equal(hasQuota(ui), false);
+  assert.equal(hasUsageBar(ui), false);
   await emit(runtime, 'after_provider_response', ctx, { headers: { 'x-codex-primary-status': 'allowed', 'x-codex-primary-window-minutes': '300' } });
   await emit(runtime, 'provider_stream_event', ctx, { provider: 'openai-codex', model: ctx.model.id,
     data: { type: 'codex.rate_limits', rate_limits: { primary: { status: 'allowed', window_minutes: 300 } } } });
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /[⡀⣀⣄⣤⣦⣶⣷⣿]/);
 });
 
-test('local models, unsupported providers and no selected model show no quota row or usage requests', async (t) => {
+test('local models, unsupported providers and no selected model show no usage row or usage requests', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const calls = fakeUsageFetch(t);
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.equal(hasQuota(ui), true);
+  assert.equal(hasUsageBar(ui), true);
   for (const provider of ['ollama', 'lmstudio', 'openai', undefined]) {
     ctx.model = provider ? { id: 'local-or-api-model', provider, baseUrl: 'http://localhost:11434/v1' } : undefined;
     await emit(runtime, 'model_select', ctx);
-    assert.equal(hasQuota(ui), false);
+    assert.equal(hasUsageBar(ui), false);
     t.mock.timers.tick(480000); await settle();
     assert.equal(calls.length, 1);
     await start(runtime, ctx); await settle();
-    assert.equal(hasQuota(ui), false);
+    assert.equal(hasUsageBar(ui), false);
     assert.equal(calls.length, 1);
   }
 });
 
-test('explicit no-limits snapshots clear cached quota; malformed durations retain dim usage', async (t) => {
+test('explicit no-limits snapshots clear cached usage; malformed durations retain dim usage', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
-  let data = quota();
+  let data = usagePayload();
   const calls = fakeUsageFetch(t, () => Response.json(data));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.equal(hasQuota(ui), true);
+  assert.equal(hasUsageBar(ui), true);
   for (const [missing, absent] of [
     [{ rate_limit: null }, true],
     [{ rate_limit: { primary_window: null, secondary_window: null } }, true],
@@ -914,16 +914,16 @@ test('explicit no-limits snapshots clear cached quota; malformed durations retai
   ]) {
     data = missing;
     t.mock.timers.tick(240000); await settle();
-    assert.equal(hasQuota(ui), !absent);
+    assert.equal(hasUsageBar(ui), !absent);
     if (!absent) assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⠀'.repeat(10))));
-    data = quota(0);
+    data = usagePayload(0);
     t.mock.timers.tick(240000); await settle();
-    assert.equal(hasQuota(ui), true, 'zero usage remains a real quota, distinct from no limits');
+    assert.equal(hasUsageBar(ui), true, 'zero usage remains a real usage bar, distinct from no limits');
   }
   assert.equal(calls.length, 7);
 });
 
-test('missing or non-OAuth credentials hide the quota without sending usage requests', async (t) => {
+test('missing or non-OAuth credentials hide the usage bar without sending usage requests', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const calls = fakeUsageFetch(t);
   const runtime = await installExtension();
@@ -933,26 +933,26 @@ test('missing or non-OAuth credentials hide the quota without sending usage requ
   for (const apiKey of [undefined, 'plain-api-key']) {
     ctx.modelRegistry.getApiKeyAndHeaders = validAuth;
     await start(runtime, ctx); await settle();
-    assert.equal(hasQuota(ui), true);
+    assert.equal(hasUsageBar(ui), true);
     const before = calls.length;
     ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey });
     t.mock.timers.tick(240000); await settle();
-    assert.equal(hasQuota(ui), false);
+    assert.equal(hasUsageBar(ui), false);
     assert.equal(calls.length, before);
     await start(runtime, ctx); await settle();
-    assert.equal(hasQuota(ui), false);
+    assert.equal(hasUsageBar(ui), false);
     assert.equal(calls.length, before);
   }
 });
 
-test('switching away and back cannot restore an old provider result; only current quota survives failed refresh', async (t) => {
+test('switching away and back cannot restore an old provider result; only current usage survives failed refresh', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   let request = 0;
   let resolveOld;
   let resolveCurrent;
   const calls = fakeUsageFetch(t, () => {
     request++;
-    if (request === 1) return Response.json(quota(35));
+    if (request === 1) return Response.json(usagePayload(35));
     if (request === 2) return new Promise((resolve) => { resolveOld = resolve; });
     if (request === 3) return new Promise((resolve) => { resolveCurrent = resolve; });
     return new Response(null, { status: 503 });
@@ -961,27 +961,27 @@ test('switching away and back cannot restore an old provider result; only curren
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.equal(hasQuota(ui), true);
+  assert.equal(hasUsageBar(ui), true);
   t.mock.timers.tick(240000); await settle();
   ctx.model.provider = 'ollama';
   await emit(runtime, 'model_select', ctx);
-  assert.equal(hasQuota(ui), false, 'previous provider quota disappears immediately');
+  assert.equal(hasUsageBar(ui), false, 'previous provider usage disappears immediately');
   assert.equal(calls[1].init.signal.aborted, true);
   ctx.model.provider = 'openai-codex';
   await emit(runtime, 'model_select', ctx); await settle();
-  assert.equal(hasQuota(ui), false, 'switching back waits for current data');
-  resolveCurrent(Response.json(quota(70))); await settle();
-  resolveOld(Response.json(quota(100))); await settle();
+  assert.equal(hasUsageBar(ui), false, 'switching back waits for current data');
+  resolveCurrent(Response.json(usagePayload(70))); await settle();
+  resolveOld(Response.json(usagePayload(100))); await settle();
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}/);
   t.mock.timers.tick(240000); await settle();
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣿⣿⣿⣿')));
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}/);
   ctx.model.provider = 'ollama';
   await emit(runtime, 'model_select', ctx);
-  assert.equal(hasQuota(ui), false, 'dimmed data also disappears on switch');
+  assert.equal(hasUsageBar(ui), false, 'dimmed data also disappears on switch');
 });
 
-test('upstream rolling-quota providers render only their short window and use their own usage endpoints', async (t) => {
+test('upstream rolling-usage providers render only their short window and use their own usage endpoints', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const reset = new Date(Date.now() + 7200000).toISOString();
   const cases = [
@@ -1025,7 +1025,7 @@ test('upstream rolling-quota providers render only their short window and use th
   }
 });
 
-test('Gemini uses selected model quota, omits unknown reset time, and refreshes on model switch', async (t) => {
+test('Gemini uses selected model usage, omits unknown reset time, and refreshes on model switch', async (t) => {
   const calls = fakeUsageFetch(t, () => Response.json({ buckets: [
     { modelId: 'gemini-pro', remainingFraction: 0.65 },
     { modelId: 'gemini-flash', remainingFraction: 0.1 },
@@ -1058,7 +1058,7 @@ test('switches between supported providers cancel old requests and never display
   ctx.model = { id: 'other', provider: 'opencode-go', baseUrl: 'https://opencode.ai/zen/go/v1' };
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'go-key' });
   await emit(runtime, 'model_select', ctx); await settle();
-  resolveOld(Response.json(quota(100))); await settle();
+  resolveOld(Response.json(usagePayload(100))); await settle();
   assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
 });
 
@@ -1082,7 +1082,7 @@ test('Anthropic response headers provide accurate small percentages without frac
   assert.equal(calls.length, 1);
 });
 
-test('Copilot monthly quotas use GitHub login token, ignore unlimited buckets, and omit absent reset time', async (t) => {
+test('Copilot monthly usage uses GitHub login token, ignores unlimited buckets, and omits absent reset time', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const authPath = join(agentDir, 'auth.json');
   await writeFile(authPath, JSON.stringify({ 'github-copilot': { type: 'oauth', refresh: 'github-login-token', access: 'inference-only-token', expires: Date.now() + 3600000 } }));
@@ -1106,7 +1106,7 @@ test('Copilot monthly quotas use GitHub login token, ignore unlimited buckets, a
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]/);
 });
 
-test('provider API errors and malformed numbers dim cached quota; custom origins are never queried', async (t) => {
+test('provider API errors and malformed numbers dim cached usage; custom origins are never queried', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   let data = { base_resp: { status_code: 0 }, model_remains: [{ model_name: 'general', current_interval_remaining_percent: 65 }] };
   const calls = fakeUsageFetch(t, () => Response.json(data));

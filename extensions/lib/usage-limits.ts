@@ -2,8 +2,8 @@
 // Copyright (c) 2025 Can Celik. MIT license: ./LICENSE.
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 
-import { parseUsageWindows, record, shortest, supportedOrigin, usageRequest, windowFrom } from "./quota-providers.js";
-import type { QuotaWindow } from "./quota-providers.js";
+import { parseUsageWindows, record, shortest, supportedOrigin, usageRequest, windowFrom } from "./usage-providers.js";
+import type { UsageWindow } from "./usage-providers.js";
 
 const REFRESH_MS = 4 * 60_000;
 const REQUEST_TIMEOUT_MS = 5000;
@@ -55,15 +55,15 @@ function passiveNumber(value: unknown): number {
   return NaN;
 }
 
-function passiveWindow(used: unknown, seconds: number | undefined, reset: unknown, cached: QuotaWindow | undefined): QuotaWindow | null {
+function passiveWindow(used: unknown, seconds: number | undefined, reset: unknown, cached: UsageWindow | undefined): UsageWindow | null {
   const window = windowFrom(used, seconds === undefined ? cached?.seconds : seconds, reset);
   // Omitted metadata belongs to the same window only while its duration agrees.
   if (window && reset === undefined && window.seconds === cached?.seconds) window.resetAt = cached.resetAt;
   return window;
 }
 
-function fromHeaders(provider: string, headers: Record<string, string>, cached: Record<string, QuotaWindow>): Record<string, QuotaWindow> {
-  const windows: Record<string, QuotaWindow> = {};
+function fromHeaders(provider: string, headers: Record<string, string>, cached: Record<string, UsageWindow>): Record<string, UsageWindow> {
+  const windows: Record<string, UsageWindow> = {};
   let definitions: readonly (readonly [string, string, number?])[];
   if (provider === "openai-codex") {
     definitions = [["primary", "primary"], ["secondary", "secondary"]];
@@ -88,14 +88,14 @@ function fromHeaders(provider: string, headers: Record<string, string>, cached: 
   return windows;
 }
 
-function fromStream(data: unknown, cached: Record<string, QuotaWindow>): Record<string, QuotaWindow> {
+function fromStream(data: unknown, cached: Record<string, UsageWindow>): Record<string, UsageWindow> {
   const event = record(data);
   if (event.type !== "codex.rate_limits") return {};
   // Other metered pools may be specific to a different model.
   const pool = event.metered_limit_name ?? event.limit_name;
   if (pool !== undefined && pool !== "codex") return {};
   const limits = record(event.rate_limits);
-  const windows: Record<string, QuotaWindow> = {};
+  const windows: Record<string, UsageWindow> = {};
   for (const key of ["primary", "secondary"]) {
     const w = record(limits[key]);
     const window = passiveWindow(passiveNumber(w.used_percent),
@@ -106,12 +106,12 @@ function fromStream(data: unknown, cached: Record<string, QuotaWindow>): Record<
   return windows;
 }
 
-/** Owns quota requests and timers for the currently displayed footer. */
+/** Owns usage requests and timers for the currently displayed footer. */
 export class UsageLimits {
   private provider: string | null = null;
   private selection: string | null = null;
   private ctx: ExtensionContext | null = null;
-  private windows: Record<string, QuotaWindow> = {};
+  private windows: Record<string, UsageWindow> = {};
   private updatedAt: Record<string, number> = {};
   private stale = false;
   private attemptedAt = 0;
@@ -164,12 +164,12 @@ export class UsageLimits {
     this.request = null;
   }
 
-  private selectedWindow(): [string, QuotaWindow] | null {
+  private selectedWindow(): [string, UsageWindow] | null {
     const window = shortest(Object.values(this.windows));
     return window ? Object.entries(this.windows).find(([, value]) => value === window)! : null;
   }
 
-  private accept(windows: Record<string, QuotaWindow>): void {
+  private accept(windows: Record<string, UsageWindow>): void {
     if (!this.ctx || !Object.keys(windows).length) return;
     Object.assign(this.windows, windows);
     for (const key of Object.keys(windows)) this.updatedAt[key] = Date.now();
@@ -202,7 +202,7 @@ export class UsageLimits {
     const provider = this.provider!;
     const modelId = model.id;
     const controller = new AbortController();
-    // Identity checks below keep late responses from restoring a replaced provider's quota.
+    // Identity checks below keep late responses from restoring a replaced provider's usage.
     this.request = controller;
     this.attemptedAt = Date.now();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

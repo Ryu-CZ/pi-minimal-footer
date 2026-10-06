@@ -31,11 +31,11 @@
 
 ### Task 1: Provider snapshots and parsing correctness
 
-**Files:** Modify `extensions/lib/quota-providers.ts`; create `tests/quota-parsing.test.mjs`; adjust affected expectations in `tests/min-footer.test.mjs`.
+**Files:** Modify `extensions/lib/usage-providers.ts`; create `tests/usage-parsing.test.mjs`; adjust affected expectations in `tests/min-footer.test.mjs`.
 
-**Interfaces:** Add `parseUsageWindows(provider: string, model: string, payload: unknown): Record<string, QuotaWindow> | null`. A nonempty record is a full snapshot; `null` means explicitly absent applicable limits; malformed/unrecognized snapshots throw. Retain `parseUsage` as a shortest-window wrapper for existing callers. Stable keys: Codex `primary`/`secondary`, Claude `five_hour`/`seven_day`, MiniMax `interval`/`weekly`, Kimi duration-and-unit keys plus top-level `weekly`, OpenCode `rollingUsage`/`weeklyUsage`/`monthlyUsage`, Copilot snapshot names, Gemini bucket identities.
+**Interfaces:** Add `parseUsageWindows(provider: string, model: string, payload: unknown): Record<string, UsageWindow> | null`. A nonempty record is a full snapshot; `null` means explicitly absent applicable limits; malformed/unrecognized snapshots throw. Retain `parseUsage` as a shortest-window wrapper for existing callers. Stable keys: Codex `primary`/`secondary`, Claude `five_hour`/`seven_day`, MiniMax `interval`/`weekly`, Kimi duration-and-unit keys plus top-level `weekly`, OpenCode `rollingUsage`/`weeklyUsage`/`monthlyUsage`, Copilot snapshot names, Gemini bucket identities.
 
-- [x] Add regression tests before implementation, importing TypeScript through existing Jiti dependency. Run `node --test tests/quota-parsing.test.mjs` and record expected failures.
+- [x] Add regression tests before implementation, importing TypeScript through existing Jiti dependency. Run `node --test tests/usage-parsing.test.mjs` and record expected failures.
 
 ```js
 assert.equal(parseUsage('kimi-coding', '', {usage:{limit:'100',used:'40'}}).used, 40);

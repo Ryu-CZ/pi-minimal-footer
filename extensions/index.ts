@@ -129,11 +129,11 @@ function updateState(ctx: ExtensionContext, state: FooterState): void {
 
 // ── Layout ────────────────────────────────────────────────────────────
 //
-// Keep quota and reset time together; shorten location/statuses before model/context.
+// Keep the usage bar and reset time together; shorten location/statuses before model/context.
 // All segment measurements use visible widths, including ANSI and wide characters.
 
 const MODEL_GAP = " · ";
-const QUOTA_GAP = " · ";
+const USAGE_GAP = " · ";
 const LOCATION_GAP_WIDTH = 3;
 const MIN_TEXT_WIDTH = 4;
 const MIN_STATUS_WIDTH = 12;
@@ -146,10 +146,10 @@ function buildLine(
   if (width <= 0) return "";
   let core = [model, context].filter(Boolean).join(MODEL_GAP);
   // Budget the compact bar first; its expanded size must not drive truncation decisions.
-  const quota = usage(width) ?? "";
-  const quotaGapWidth = quota && core ? QUOTA_GAP.length : 0;
-  const coreBudget = Math.max(0, width - visibleWidth(quota) - quotaGapWidth);
-  if (quota && coreBudget < MIN_TEXT_WIDTH) {
+  const usageBar = usage(width) ?? "";
+  const usageGapWidth = usageBar && core ? USAGE_GAP.length : 0;
+  const coreBudget = Math.max(0, width - visibleWidth(usageBar) - usageGapWidth);
+  if (usageBar && coreBudget < MIN_TEXT_WIDTH) {
     core = "";
   } else if (visibleWidth(core) > coreBudget) {
     const modelGapWidth = model && context ? MODEL_GAP.length : 0;
@@ -160,7 +160,7 @@ function buildLine(
       core = truncateToWidth(context || model, coreBudget, "...");
     }
   }
-  const protectedRight = [core, quota].filter(Boolean).join(QUOTA_GAP);
+  const protectedRight = [core, usageBar].filter(Boolean).join(USAGE_GAP);
   const branchReservation = branch ? visibleWidth(branch) + LOCATION_GAP_WIDTH : 0;
   const statusBudget = width - visibleWidth(protectedRight) - branchReservation - visibleWidth(statusSeparator);
   let fittedStatuses = "";
@@ -178,12 +178,12 @@ function buildLine(
   const pathBudget = leftBudget - visibleWidth(fittedBranch) - pathGapWidth;
   const fittedPath = pathBudget >= MIN_TEXT_WIDTH ? truncateToWidth(path, pathBudget, "...") : "";
   const left = [fittedPath, fittedBranch].filter(Boolean).join(locationSeparator);
-  if (quota) {
-    // A dropped left group needs no divider; those columns belong to the quota bar instead.
+  if (usageBar) {
+    // A dropped left group needs no divider; those columns belong to the usage bar instead.
     const interGroupGapWidth = left && right ? LOCATION_GAP_WIDTH : 0;
     const spareWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right) - interGroupGapWidth);
-    const expandedQuota = usage(visibleWidth(quota) + spareWidth, MAX_BAR_CELLS) ?? quota;
-    const expandedCore = [core, expandedQuota].filter(Boolean).join(QUOTA_GAP);
+    const expandedUsageBar = usage(visibleWidth(usageBar) + spareWidth, MAX_BAR_CELLS) ?? usageBar;
+    const expandedCore = [core, expandedUsageBar].filter(Boolean).join(USAGE_GAP);
     right = [fittedStatuses, expandedCore].filter(Boolean).join(statusSeparator);
   }
   return left + " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right))) + right;
@@ -225,7 +225,7 @@ export default function (pi: ExtensionAPI) {
         if (disposed) return;
         disposed = true;
         unsub();
-        // A superseded renderer must not stop its replacement's quota polling.
+        // A superseded renderer must not stop its replacement's usage polling.
         if (requestRender === request) {
           requestRender = null;
           usageLimits.stop();

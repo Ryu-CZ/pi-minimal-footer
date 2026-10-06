@@ -6,7 +6,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export interface QuotaWindow {
+export interface UsageWindow {
   used: number;
   seconds: number | null;
   resetAt: number | null;
@@ -31,15 +31,15 @@ function resetSeconds(value: unknown): number | undefined {
   return seconds !== undefined && seconds > 0 && Number.isFinite(new Date(seconds * 1000).getTime()) ? seconds : undefined;
 }
 
-export function windowFrom(used: unknown, seconds: unknown, reset: unknown): QuotaWindow | null {
+export function windowFrom(used: unknown, seconds: unknown, reset: unknown): UsageWindow | null {
   if (typeof used !== "number" || !Number.isFinite(used) || used < 0 || used > 100) return null;
   if (seconds != null && (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0)) return null;
   const validReset = typeof reset === "number" && reset > 0 && Number.isFinite(new Date(reset * 1000).getTime());
   return { used, seconds: typeof seconds === "number" ? seconds : null, resetAt: validReset ? reset * 1000 : null };
 }
 
-export function shortest(windows: (QuotaWindow | null)[]): QuotaWindow | null {
-  return windows.filter((w): w is QuotaWindow => w !== null)
+export function shortest(windows: (UsageWindow | null)[]): UsageWindow | null {
+  return windows.filter((w): w is UsageWindow => w !== null)
     .sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity) || b.used - a.used)[0] ?? null;
 }
 
@@ -122,13 +122,13 @@ function relativeReset(value: unknown): number | undefined {
   return delay !== undefined && delay >= 0 ? resetSeconds(Date.now() / 1000 + delay) : undefined;
 }
 
-export function parseUsageWindows(provider: string, model: string, payload: unknown): Record<string, QuotaWindow> | null {
+export function parseUsageWindows(provider: string, model: string, payload: unknown): Record<string, UsageWindow> | null {
   if (!ENDPOINTS[provider]) return null;
-  const windows: Record<string, QuotaWindow> = {};
+  const windows: Record<string, UsageWindow> = {};
   let recognized = false;
   let malformed = !isObject(payload);
   const data = record(payload);
-  const add = (key: string, value: unknown, parse: (w: Record<string, unknown>) => QuotaWindow | null) => {
+  const add = (key: string, value: unknown, parse: (w: Record<string, unknown>) => UsageWindow | null) => {
     if (value === undefined) return;
     recognized = true;
     if (value === null) return;
@@ -259,6 +259,6 @@ export function parseUsageWindows(provider: string, model: string, payload: unkn
   return finish();
 }
 
-export function parseUsage(provider: string, model: string, payload: unknown): QuotaWindow | null {
+export function parseUsage(provider: string, model: string, payload: unknown): UsageWindow | null {
   return shortest(Object.values(parseUsageWindows(provider, model, payload) ?? {}));
 }
