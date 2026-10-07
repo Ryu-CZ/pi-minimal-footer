@@ -118,3 +118,29 @@ Run `npm run check` and `npm test` for behavior changes. Cover relevant cases:
 Preview font-dependent appearance in a real terminal; width checks cannot prove glyph availability.
 
 Keep release notes in [CHANGELOG.md](CHANGELOG.md), and keep the README focused on installation and daily use. Preserve [upstream MIT attribution](extensions/lib/LICENSE) when changing adapted provider code.
+
+### Release and scoped mirror
+
+The unscoped `pi-minimal-footer` package is the primary release path. The
+`release/scoped-mirror-0.5.2` branch is an official scoped mirror with the
+same code and version; its only package identity change is the scoped name.
+Develop normally on `main`, release the unscoped package there, then merge
+`main` into the mirror branch and retain `@ryu-cz/pi-minimal-footer` in both
+`package.json` and `package-lock.json`.
+
+Scoped npm packages must be explicitly published publicly. From the mirror
+branch, after checking the package contents and authenticating securely, run:
+
+```bash
+npm ci
+npm run check
+npm test
+npm pack --dry-run
+npm publish --access public
+npm view @ryu-cz/pi-minimal-footer version
+```
+
+Do not publish both names from the mirror branch, do not install both packages
+in one Pi environment, and do not commit npm credentials or OTPs. The scoped
+package is an indexing workaround for pi.dev catalog search, not a guaranteed
+catalog fix.
