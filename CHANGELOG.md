@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-07
+
 ### Added
 
 - Show Git upstream divergence next to the branch, for example ` main ↑2 ↓1`; `↑` is local commits to push and `↓` is upstream commits to pull
