@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-07
+
+### Added
+
+- Publish the same extension as the official scoped mirror `@ryu-cz/pi-minimal-footer`, while retaining `pi-minimal-footer` as the original release path
+- Document both installation names and warn users to install only one
+
 ## [0.5.1] - 2026-10-07
 
 ### Changed

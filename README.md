@@ -27,9 +27,18 @@ Pi minimal footer is an opinionated, compact, one-line status bar for [Pi](https
 
 Requires Node.js >=22.19.0. Interactive terminal UI only.
 
+Choose one npm name (they contain the same extension; do not install both):
+
 ```bash
 pi install npm:pi-minimal-footer
+# or
+pi install npm:@ryu-cz/pi-minimal-footer
 ```
+
+`pi-minimal-footer` remains the original, unscoped release path. The scoped
+`@ryu-cz/pi-minimal-footer` package is an official mirror intended to improve
+package indexing; it is not a separate extension. The scoped name is an
+indexing workaround, not a guaranteed fix for pi.dev catalog search.
 
 ## Commands
 
