@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Changed
 
+- Keep the whole Git section in normal text foreground while commits remain to push or pull, returning to dim when synced
 - Bold changed Git divergence arrows/counts for two user submissions; further changes restart the highlight, while tool turns and extension prompts do not consume it
 
 ## [0.5.0] - 2026-10-07

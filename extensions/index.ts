@@ -308,7 +308,8 @@ export default function (pi: ExtensionAPI) {
             width,
             config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
             statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
-            branchText ? theme.fg("dim", ` ${branchText}`) : "",
+            // Keep unsynced branches readable; bold counts separately mark recent changes.
+            branchText ? theme.fg(state.gitSync ? "text" : "dim", ` ${branchText}`) : "",
             config.showModel ? theme.bold(state.model) : "",
             config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
             (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
