@@ -1245,7 +1245,7 @@ test('Git changes highlight counts for two user inputs, not tool turns, and rest
   const cwd = await mkdtemp(join(tmpdir(), 'footer-git-'));
   const git = (...args) => execFileSync('git', ['-C', cwd, ...args], { stdio: 'pipe' });
   let pending;
-  const { ctx, ui } = makeContext({ cwd, renderTheme: { fg: (color, s) => theme.fg(color, s), bold: (s) => `<bold>${s}</bold>` },
+  const { ctx, ui } = makeContext({ cwd, renderTheme: { fg: (color, s) => color === 'text' ? `<text>${s}</text>` : theme.fg(color, s), bold: (s) => `<bold>${s}</bold>` },
     tui: { requestRender() { pending?.(); } } });
   const runtime = await installExtension();
   const waitFor = async (action, predicate) => {
@@ -1269,6 +1269,7 @@ test('Git changes highlight counts for two user inputs, not tool turns, and rest
     git('commit', '--allow-empty', '-m', 'one');
     await waitFor(() => start(runtime, ctx), (s) => s.includes(' ↑1'));
     assert.doesNotMatch(ui.component.render(160)[0], /<bold> ↑1/);
+    assert.match(ui.component.render(160)[0], /<text> main ↑1<\/text>/);
     git('commit', '--allow-empty', '-m', 'two');
     await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> ↑2</bold>'));
     await emit(runtime, 'turn_end', ctx);
@@ -1281,6 +1282,11 @@ test('Git changes highlight counts for two user inputs, not tool turns, and rest
     assert.match(ui.component.render(160)[0], /<bold> ↑3<\/bold>/);
     await emit(runtime, 'input', ctx, { source: 'interactive' });
     assert.doesNotMatch(ui.component.render(160)[0], /<bold> ↑3/);
+    assert.match(ui.component.render(160)[0], /<text> main ↑3<\/text>/);
+    // Simulate upstream catching up after a push: no divergence, no emphasis.
+    git('branch', '-f', 'upstream', 'HEAD');
+    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => !s.includes('↑3'));
+    assert.doesNotMatch(ui.component.render(160)[0], /<text>/);
   } finally {
     await emit(runtime, 'session_shutdown', ctx);
     await rm(cwd, { recursive: true, force: true });

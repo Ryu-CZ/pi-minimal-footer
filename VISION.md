@@ -8,12 +8,11 @@ The [README](README.md) is the user manual. This document records current design
 
 ## Layout contract
 
-- Directory and git branch form the left group, separated by ``. Pi supplies the branch name; the extension asynchronously runs `git rev-list --left-right --count HEAD...@{upstream}` to append local/upstream divergence as `↑N`/`↓N` (push/pull). The counts are omitted when no upstream is configured, and Git work stays outside synchronous rendering so a slow repository cannot block the TUI.
+- Directory and Git branch form the left group, separated by ``.
 - Each extension status is its own `` tab. Preserve the supplied text; do not invent status labels, parentheses, or pipes.
 - Model, context, and subscription usage form the rightmost group, separated by ` · `. Model identifies the running engine; context describes its usage; the usage bar stays anchored at the right edge.
 - Powerline separators are dim. `powerlineSeparator: false` replaces them with a single space. Font availability cannot be detected reliably.
 - Measure terminal columns with `visibleWidth`, not string length. Preserve ANSI styling and wide-character accounting when truncating.
-- Git divergence refreshes on Pi's branch-change signal and normal footer state refreshes; it is best-effort and never allowed to prevent the footer from loading. Changed counts are bold until two subsequent user submissions, not tool turns; changes restart that window. Initial loading and working-directory changes establish an unhighlighted baseline. Overlapping queries ignore older results.
 
 ### Space allocation
 
@@ -36,6 +35,14 @@ Two cells give 6.25% steps; ten give 1.25%. Fill rounds to the nearest eighth-ce
 | `⣿` | Full |
 
 The bar and reset label have no intervening space. Reset formatting uses local clock time through 24 hours, remaining whole days/hours above 24 hours, and whole days above 10 days. Exactly 24 hours stays clock time; exactly 10 days is `↻10d0h`. Missing reset metadata leaves the bar visible without a label.
+
+## Git contract
+
+- Pi supplies the branch name. Query `git rev-list --left-right --count HEAD...@{upstream}` for `↑N` local-only and `↓N` upstream-only commits. Use local refs; never fetch automatically.
+- Query outside rendering with a one-second timeout so Git cannot block the TUI. Missing upstreams and command failures omit counts.
+- Refresh on branch-change signals and footer state updates. Ignore older query results to prevent stale counts from restarting highlights.
+- Use the theme's normal text foreground while unsynced, otherwise dim. A count change bolds the arrows/counts until two subsequent user submissions; further changes restart the window. Tool turns and extension prompts do not consume it.
+- Initial loading and working-directory changes establish an unhighlighted baseline. Zero counts hide the arrows entirely.
 
 ## Subscription usage contract
 
@@ -96,12 +103,18 @@ For a manual install, copy `extensions/*` into `~/.pi/agent/extensions/`.
 - `extensions/index.ts`: settings, state refresh, layout, footer lifecycle, and `/minfooter`.
 - `extensions/lib/usage-limits.ts`: usage refresh, cache, cancellation, and bar/reset rendering.
 - `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and response normalization.
-- `tests/`: loader-based lifecycle/layout regression tests and usage parsing tests.
+- `tests/`: lifecycle/layout regressions, Git highlighting with a temporary repository, and usage parsing tests.
 
 Settings live under `minFooter` in Pi's configured agent directory. Read them at session start or explicit toggle; ordinary refreshes use cached settings. Preserve unrelated settings on writes. Only install the footer in interactive terminal mode.
 
 ### Checking changes
 
-For behavior changes, run `npm run check` and `npm test`. Layout tests should cover narrow widths, ANSI text, wide Unicode, field priority, and both separator modes. Subscription usage changes should cover provider switches, timeouts, stale cache, partial updates, and malformed/missing metadata as applicable. Preview in a real terminal for font-dependent appearance; automated width checks cannot prove glyph availability.
+Run `npm run check` and `npm test` for behavior changes. Cover relevant cases:
+
+- Layout: narrow widths, ANSI/wide Unicode, field priority, and separator modes.
+- Git: divergence, synced styling, highlight expiry/restart, and user submissions versus tool turns.
+- Subscription usage: provider switches, timeouts, stale cache, partial updates, and malformed/missing metadata.
+
+Preview font-dependent appearance in a real terminal; width checks cannot prove glyph availability.
 
 Keep release notes in [CHANGELOG.md](CHANGELOG.md), and keep the README focused on installation and daily use. Preserve [upstream MIT attribution](extensions/lib/LICENSE) when changing adapted provider code.
