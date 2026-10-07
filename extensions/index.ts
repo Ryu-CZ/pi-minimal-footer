@@ -17,6 +17,8 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname, sep } from "node:path";
 import { homedir } from "node:os";
+import { promisify } from "node:util";
+import { execFile } from "node:child_process";
 import { BASE_BAR_CELLS, MAX_BAR_CELLS, UsageLimits } from "./lib/usage-limits.js";
 
 // ── Settings ──────────────────────────────────────────────────────────
@@ -35,6 +37,8 @@ interface Settings {
 }
 
 type FooterSettings = NonNullable<Settings["minFooter"]>;
+
+const execFileAsync = promisify(execFile);
 
 const DEFAULT_SETTINGS: FooterSettings = {
   enabled: true,
@@ -111,6 +115,32 @@ interface FooterState {
   cwd: string;
   model: string;
   context: string;
+  gitSync: string;
+}
+
+async function getGitSync(cwd: string): Promise<string> {
+  try {
+    // Pi exposes the branch name, but not upstream divergence. Keep this
+    // asynchronous and outside render() so a slow Git repository cannot block TUI rendering.
+    const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"], {
+      timeout: 1000,
+      maxBuffer: 1024,
+    });
+    // With HEAD...@{upstream}, left is local-only commits (push) and right
+    // is upstream-only commits (pull). An absent upstream is intentionally hidden.
+    const [ahead, behind] = stdout.trim().split(/\s+/).map(Number);
+    if (!Number.isInteger(ahead) || !Number.isInteger(behind)) return "";
+    return `${ahead ? ` ↑${ahead}` : ""}${behind ? ` ↓${behind}` : ""}`;
+  } catch {
+    // No repository, upstream, or reachable Git command: omit sync status.
+    return "";
+  }
+}
+
+async function updateGitSync(state: FooterState): Promise<void> {
+  const cwd = state.cwd;
+  const gitSync = await getGitSync(cwd);
+  if (state.cwd === cwd) state.gitSync = gitSync;
 }
 
 function updateState(ctx: ExtensionContext, state: FooterState): void {
@@ -203,7 +233,7 @@ function buildLine(
 export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
-  const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?" };
+  const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?", gitSync: "" };
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
   const usageLimits = new UsageLimits(() => requestRender?.());
@@ -226,7 +256,12 @@ export default function (pi: ExtensionAPI) {
     }
 
     ctx.ui.setFooter((tui, theme, footerData) => {
-      const unsub = footerData.onBranchChange(() => tui.requestRender());
+      // Branch changes are Pi's invalidation signal; refresh the async Git
+      // divergence separately because footer rendering must remain synchronous.
+      const unsub = footerData.onBranchChange(() => {
+        void updateGitSync(state).then(() => tui.requestRender());
+        tui.requestRender();
+      });
       const request = () => tui.requestRender();
       requestRender = request;
       let disposed = false;
@@ -249,12 +284,13 @@ export default function (pi: ExtensionAPI) {
             ? [...footerData.getExtensionStatuses().values()].filter((s) => s.trim())
             : [];
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
+          const branchText = branch ? `${branch}${state.gitSync}` : "";
           const statusSeparator = config.powerlineSeparator ? theme.fg("dim", "  ") : " ";
           const line = buildLine(
             width,
             config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
             statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
-            branch ? theme.fg("dim", ` ${branch}`) : "",
+            branchText ? theme.fg("dim", ` ${branchText}`) : "",
             config.showModel ? theme.bold(state.model) : "",
             config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
             (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
@@ -274,6 +310,7 @@ export default function (pi: ExtensionAPI) {
   /** Cheap refresh: update plain state and request one render. */
   function refresh(ctx: ExtensionContext): void {
     updateState(ctx, state);
+    void updateGitSync(state).then(() => requestRender?.());
     requestRender?.();
   }
 

@@ -8,11 +8,12 @@ The [README](README.md) is the user manual. This document records current design
 
 ## Layout contract
 
-- Directory and git branch form the left group, separated by ``.
+- Directory and git branch form the left group, separated by ``. Pi supplies the branch name; the extension asynchronously runs `git rev-list --left-right --count HEAD...@{upstream}` to append local/upstream divergence as `↑N`/`↓N` (push/pull). The counts are omitted when no upstream is configured, and Git work stays outside synchronous rendering so a slow repository cannot block the TUI.
 - Each extension status is its own `` tab. Preserve the supplied text; do not invent status labels, parentheses, or pipes.
 - Model, context, and subscription usage form the rightmost group, separated by ` · `. Model identifies the running engine; context describes its usage; the usage bar stays anchored at the right edge.
 - Powerline separators are dim. `powerlineSeparator: false` replaces them with a single space. Font availability cannot be detected reliably.
 - Measure terminal columns with `visibleWidth`, not string length. Preserve ANSI styling and wide-character accounting when truncating.
+- Git divergence refreshes on Pi's branch-change signal and normal footer state refreshes; it is best-effort and never allowed to prevent the footer from loading.
 
 ### Space allocation
 

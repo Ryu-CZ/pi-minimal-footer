@@ -14,7 +14,7 @@ An opinionated, compact one-line footer for [Pi](https://github.com/earendil-wor
 **Left**
 
 - Working directory: `~/git/project`
-- Git branch: ` main`
+- Git branch and upstream divergence: ` main ↑2 ↓1` (`↑` to push, `↓` to pull); counts appear when an upstream is configured
 
 **Right**
 
@@ -59,7 +59,8 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 ```
 
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
-- Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` also needs a compatible font; hide it with `showGitBranch: false` if needed.
+- Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
+- Git sync counts are omitted for branches without an upstream, detached HEADs, and non-Git directories.
 - `maxUsageBarCells` caps the Braille bar length (excluding brackets and reset time). Use a positive integer, e.g. `4` for a compact bar; invalid values fall back to `10`.
 
 ## Reading the footer

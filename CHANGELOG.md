@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Show Git upstream divergence next to the branch, for example ` main ↑2 ↓1`; `↑` is local commits to push and `↓` is upstream commits to pull
+
+### Changed
+
+- Query Git divergence asynchronously and omit it safely when the repository has no upstream or Git is unavailable
+
 ## [0.4.2] - 2026-10-07
 
 ### Fixed
