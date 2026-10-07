@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refresh local Git divergence while Pi is idle every 91 seconds by default, configurable through `minFooter.gitRefreshSeconds`; stop polling when the footer is disposed and never fetch remote refs
+
 ## [0.5.2] - 2026-10-07
 
 ### Added

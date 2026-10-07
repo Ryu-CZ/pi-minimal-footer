@@ -40,7 +40,7 @@ The bar and reset label have no intervening space. Reset formatting uses local c
 
 - Pi supplies the branch name. Query `git rev-list --left-right --count HEAD...@{upstream}` for `↑N` local-only and `↓N` upstream-only commits. Use local refs; never fetch automatically.
 - Query outside rendering with a one-second timeout so Git cannot block the TUI. Missing upstreams and command failures omit counts.
-- Refresh on branch-change signals and footer state updates. Ignore older query results to prevent stale counts from restarting highlights.
+- Refresh on branch-change signals and footer state updates, plus every 91 seconds while the footer is active so external commits are noticed even when Pi is idle. `minFooter.gitRefreshSeconds` accepts positive integer seconds; invalid values fall back to 91. Local-only queries permit a shorter interval than subscription usage polling without network traffic. Stop the timer on footer disposal. Ignore older query results to prevent stale counts from restarting highlights.
 - Use the theme's normal text foreground while unsynced, otherwise dim. A count change bolds the arrows/counts until two subsequent user submissions; further changes restart the window. Tool turns and extension prompts do not consume it.
 - Initial loading and working-directory changes establish an unhighlighted baseline. Zero counts hide the arrows entirely.
 
