@@ -69,7 +69,7 @@ function provider(statuses = new Map([['skill', '技能 ✅'], ['empty', '  ']])
 
 const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
-const hasUsageBar = (ui) => /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+↻\d\d:\d\d$/.test(stripAnsi(ui.component.render(120)[0]));
+const hasUsageBar = (ui) => /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+↻\d\d:\d\d $/.test(stripAnsi(ui.component.render(120)[0]));
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const usagePayload = (used = 35, reset = Date.now() / 1000 + 7200) => ({ rate_limit: {
   primary_window: { used_percent: used, limit_window_seconds: 18000, reset_at: reset },
@@ -113,6 +113,25 @@ test('each real loader call creates isolated lifecycle handlers without message_
   assert.notEqual(ext, next, 'each test fixture needs a fresh extension closure');
   for (const name of ['session_start', 'model_select', 'turn_end', 'agent_settled', 'session_compact', 'session_tree', 'session_shutdown']) assert.ok(ext.handlers.has(name), name);
   assert.equal(ext.handlers.has('message_end'), false);
+});
+
+test('footer pads both edges and fills the visible width', async () => {
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext();
+  await start(runtime, ctx);
+  try {
+    for (const width of [0, 1, 2, 3, 20, 120]) {
+      const line = stripAnsi(ui.component.render(width)[0]);
+      assert.equal(visibleWidth(line), width, `width=${width}`);
+      if (width <= 2) assert.equal(line, ' '.repeat(width));
+      else {
+        assert.ok(line.startsWith(' '), `leading space at width=${width}`);
+        assert.ok(line.endsWith(' '), `trailing space at width=${width}`);
+      }
+    }
+  } finally {
+    ui.component.dispose();
+  }
 });
 
 test('ordinary refresh requests render without reinstalling footer or adding branch subscriptions', async () => {
@@ -262,10 +281,10 @@ test('reset labels use clock time, days/hours, then days only without overflowin
     await start(runtime, ctx);
     await settle();
     const line = stripAnsi(ui.component.render(120)[0]);
-    if (expected) assert.ok(line.endsWith(expected), line);
+    if (expected) assert.ok(line.endsWith(expected + ' '), line);
     else {
       const date = new Date(reset);
-      assert.ok(line.endsWith(`↻${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`), line);
+      assert.ok(line.endsWith(`↻${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')} `), line);
     }
     for (let width = 0; width <= 120; width++) {
       assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}, remaining=${remaining}`);
@@ -274,22 +293,62 @@ test('reset labels use clock time, days/hours, then days only without overflowin
   }
 });
 
-test('usage bar grows from five to ten cells using spare columns', async (t) => {
+test('usage bar respects configured cell caps and invalid values fall back to ten', async (t) => {
+  fakeUsageFetch(t);
+  for (const [maxUsageBarCells, expected] of [[4, 4], [1, 1], [16, 16], [undefined, 10], [0, 10], [-1, 10], [2.5, 10], ['4', 10], [null, 10]]) {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: {
+      maxUsageBarCells, showPath: false, showGitBranch: false, showSkills: false, showModel: false, showContext: false,
+    } }));
+    const runtime = await installExtension();
+    const { ctx, ui } = codexContext();
+    await start(runtime, ctx);
+    await settle();
+    try {
+      const wide = stripAnsi(ui.component.render(120)[0]);
+      assert.equal(wide.match(/\[([⠀⡀⣀⣄⣤⣦⣶⣷⣿]+)\]/)?.[1].length, expected, `cap=${maxUsageBarCells}`);
+      assert.match(wide, /\]↻\d\d:\d\d $/);
+      for (let width = 0; width <= 120; width++) {
+        const line = stripAnsi(ui.component.render(width)[0]);
+        assert.ok(visibleWidth(line) <= width, `cap=${maxUsageBarCells}, width=${width}`);
+        const cells = line.match(/\[([⠀⡀⣀⣄⣤⣦⣶⣷⣿]+)\]/)?.[1].length ?? 0;
+        assert.ok(cells <= expected, `cap=${maxUsageBarCells}, width=${width}`);
+      }
+    } finally {
+      await emit(runtime, 'session_shutdown', ctx);
+    }
+  }
+});
+
+test('two-cell compact bar preserves model and context before expansion', async (t) => {
+  fakeUsageFetch(t);
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  await start(runtime, ctx);
+  await settle();
+  try {
+    assert.match(stripAnsi(ui.component.render(35)[0]), /^ test-model · 12\/128k · \[⣶⠀\]↻\d\d:\d\d $/);
+  } finally {
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+});
+
+test('usage bar grows from two to ten cells using spare columns', async (t) => {
   fakeUsageFetch(t);
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showPath: false, showGitBranch: false, showSkills: false, showModel: false, showContext: false } }));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
   await start(runtime, ctx);
   await settle();
-  for (const [width, cells] of [[11, 3], [12, 4], [13, 5], [14, 6], [15, 7], [16, 8], [19, 10], [120, 10]]) {
+  for (const [width, cells] of [[12, 2], [13, 3], [14, 4], [15, 5], [16, 6], [17, 7], [18, 8], [21, 10], [120, 10]]) {
     const line = stripAnsi(ui.component.render(width)[0]);
-    const bar = line.match(/[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+(?=↻)/)?.[0];
+    const bar = line.match(/\[([⠀⡀⣀⣄⣤⣦⣶⣷⣿]+)\]↻/)?.[1];
     assert.equal(bar?.length, cells, `width=${width}`);
     assert.ok(visibleWidth(line) <= width);
   }
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻/);
-  assert.match(stripAnsi(ui.component.render(11)[0]), /\[⣿⣶⠀\]↻/);
-  assert.match(stripAnsi(ui.component.render(16)[0]), /^\[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{8}\]↻\d\d:\d\d$/, 'usage-only footer uses every available column');
+  assert.match(stripAnsi(ui.component.render(12)[0]), /\[⣶⠀\]↻/);
+  assert.match(stripAnsi(ui.component.render(13)[0]), /\[⣿⠀⠀\]↻/);
+  assert.match(stripAnsi(ui.component.render(18)[0]), /^ \[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{8}\]↻\d\d:\d\d $/, 'usage-only footer uses every available column');
   for (let width = 0; width <= 120; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
   await emit(runtime, 'session_shutdown', ctx);
 });
@@ -361,7 +420,7 @@ test('rendering fits pathological widths, ANSI/Unicode status, and preserves mod
   const wide = component.render(160)[0];
   assert.match(wide, /模型/);
   assert.match(wide, / main/);
-  assert.match(stripAnsi(wide), /^~\/project\/child   main + 技能 ✅  long status text  模型-red · 12\/128k$/);
+  assert.match(stripAnsi(wide), /^ ~\/project\/child   main + 技能 ✅  long status text  模型-red · 12\/128k $/);
   assert.deepEqual(boldCalls.slice(-2), ['模型\u001b[31m-red\u001b[0m', '12/128k'], 'model/context retain bold theme styling');
   assert.match(wide, /\u001b\[1m/);
   assert.equal(visibleWidth(wide), 160, 'normal layout right-aligns and fills the available width');
@@ -371,14 +430,14 @@ test('rendering fits pathological widths, ANSI/Unicode status, and preserves mod
   assert.match(medium, / main/);
   assert.match(medium, /模型/);
   assert.equal(visibleWidth(medium), 44, 'status-drop layout remains right-aligned');
-  assert.match(medium, /^ main + .*  模型/);
-  assert.match(medium, /12\/128k$/);
+  assert.match(medium, /^  main + .*  模型/);
+  assert.match(medium, /12\/128k $/);
   const narrow = stripAnsi(component.render(20)[0]);
   assert.doesNotMatch(narrow, /|技能|long status/, 'git drops before model/context');
   assert.match(narrow, /模型/);
   assert.equal(visibleWidth(narrow), 20, 'branch-drop layout remains right-aligned');
   assert.match(narrow, /^ +/);
-  assert.match(narrow, /12\/128k$/);
+  assert.match(narrow, /12\/128k $/);
   assert.ok(visibleWidth(component.render(5)[0]) <= 5);
 });
 
@@ -431,7 +490,7 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
   const lines = ui.component.render(120).map(stripAnsi);
   assert.equal(lines.length, 1);
   assert.match(lines[0], /project   main + 技能 ✅  test-model/);
-  assert.match(lines[0], /test-model · 12\/128k · ⣿{3}⣤⠀{6}↻16:40$/);
+  assert.match(lines[0], /test-model · 12\/128k · ⣿{3}⣤⠀{6}↻16:40 $/);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://chatgpt.com/backend-api/wham/usage');
   assert.equal(calls[0].init.headers['ChatGPT-Account-Id'], 'test-account');
@@ -445,9 +504,9 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
     assert.ok(visibleWidth(rendered[0]) <= width, `width=${width}`);
   }
   const narrow = stripAnsi(ui.component.render(32)[0]);
-  assert.match(narrow, /12\/128k · [⠀⡀⣀⣄⣤⣦⣶⣷⣿]{5}↻16:40$/);
+  assert.match(narrow, /12\/128k · [⠀⡀⣀⣄⣤⣦⣶⣷⣿]{5}↻16:40 $/);
   assert.doesNotMatch(narrow, /project|技能|/);
-  assert.match(stripAnsi(ui.component.render(10)[0]), /↻16:40$/);
+  assert.match(stripAnsi(ui.component.render(10)[0]), /↻16:40 $/);
 });
 
 for (const [random, delay] of [[0, 210000], [0.5, 240000], [1 - Number.EPSILON, 270000]]) {
@@ -517,7 +576,7 @@ test('Codex stream usage updates render without polling and ignore other provide
   await emit(runtime, 'provider_stream_event', ctx, { ...event, provider: 'anthropic' });
   assert.equal(hasUsageBar(ui), false);
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d $/);
 });
 
 test('provider switch cancels pending usage and discards late results, disable stops polling', async (t) => {
@@ -590,8 +649,8 @@ test('Braille fills bottom-up in eighth-cell steps with warning/error colors', a
       'X-Codex-Primary-Used-Percent': String(used), 'X-Codex-Primary-Window-Minutes': '300',
       'X-Codex-Primary-Reset-At': String(Date.now() / 1000 + 7200),
     } });
-    const line = ui.component.render(11)[0];
-    assert.match(stripAnsi(line), new RegExp(`^${filled}${empty}↻\\d\\d:\\d\\d$`));
+    const line = ui.component.render(13)[0];
+    assert.match(stripAnsi(line), new RegExp(`^ ${filled}${empty}↻\\d\\d:\\d\\d $`));
     assert.ok(line.includes(theme.fg(color, filled)));
   }
 });
@@ -633,7 +692,7 @@ test('reset triggers a fresh check, failed refresh dims cached usage without a r
   data = usagePayload(0, Date.now() / 1000 + 18000);
   t.mock.timers.tick(1); await settle();
   assert.equal(calls.length, 3);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d $/);
 });
 
 test('usage request times out and retries later; effective custom origin or non-OAuth key is never sent', async (t) => {
@@ -728,7 +787,7 @@ test('credential resolution after timeout cannot fetch or overwrite a newer succ
   t.mock.timers.tick(9000); await settle();
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 1, 'a fresh attempt succeeds after the old auth times out');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d $/);
   resolveOld(validAuth); await settle();
   assert.equal(calls.length, 1, 'late authentication must not issue a fetch');
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
@@ -748,7 +807,7 @@ test('switching provider during authentication ignores both late resolution and 
   await emit(runtime, 'model_select', ctx); await settle();
   resolveOld(validAuth); await settle();
   assert.equal(calls.length, 1);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d $/);
   let rejectOld;
   ctx.model = { id: 'codex', provider: 'openai-codex', baseUrl: 'https://chatgpt.com/backend-api' };
   ctx.modelRegistry.getApiKeyAndHeaders = () => new Promise((_resolve, reject) => { rejectOld = reject; });
@@ -778,7 +837,7 @@ test('pending JSON consumption times out, dims cache, and ignores late bodies af
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 3);
   resolveBody(usagePayload(100)); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d $/);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣿⣿⣿⣿')));
 });
 
@@ -838,14 +897,14 @@ for (const providerName of ['openai-codex', 'anthropic']) {
         'x-codex-secondary-used-percent': '96', 'x-codex-secondary-window-minutes': '10080',
         'x-codex-secondary-reset-at': String(reset + 604800),
       } : { 'anthropic-ratelimit-unified-7d-utilization': '0.96' } });
-      assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00$/);
+      assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00 $/);
       assert.equal(calls.length, 1);
     }
     t.mock.timers.tick(1); await settle();
     assert.equal(calls.length, 2, 'longer-window signals cannot postpone short-window fallback');
     await emit(runtime, 'after_provider_response', ctx, { headers: providerName === 'openai-codex'
       ? { 'x-codex-primary-used-percent': '70' } : { 'anthropic-ratelimit-unified-5h-utilization': '0.70' } });
-    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:00$/,
+    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:00 $/,
       'usage-only updates retain compatible duration and reset metadata');
   });
 }
@@ -862,12 +921,12 @@ test('Codex partial streams merge stable window keys and preserve omitted short-
     secondary: { used_percent: 96, window_minutes: 10080 },
   } } };
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00 $/);
   t.mock.timers.tick(60000); await settle();
   assert.equal(calls.length, 2);
   event.data.rate_limits = { primary: { used_percent: 70 } };
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:04$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:04 $/);
 });
 
 test('weekly-only passive signals do not cancel an in-flight short-window fallback or undim failed cache', async (t) => {
@@ -899,7 +958,7 @@ test('endpoint snapshots replace passive windows and status-only passive respons
   await start(runtime, ctx); await settle();
   data = { rate_limit: { secondary_window: { used_percent: 100, limit_window_seconds: 604800 } } };
   t.mock.timers.tick(240000); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{10}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{10} $/);
   data = { rate_limit: null };
   t.mock.timers.tick(240000); await settle();
   assert.equal(hasUsageBar(ui), false);
@@ -1051,7 +1110,7 @@ test('upstream rolling-usage providers render only their short window and use th
     ctx.model = { id: 'test-model', provider: providerName, baseUrl };
     await start(runtime, ctx); await settle();
     assert.equal(calls.at(-1)?.url, endpoint);
-    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d$/);
+    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d $/);
     assert.equal(calls.at(-1).init.headers.Authorization, 'Bearer provider-token');
   }
 });
@@ -1067,14 +1126,14 @@ test('Gemini uses selected model usage, omits unknown reset time, and refreshes 
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'gemini-access' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /↻/);
   assert.equal(calls[0].url, 'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota');
   assert.equal(calls[0].init.method, 'POST');
   ctx.model = { ...ctx.model, id: 'gemini-flash' };
   await emit(runtime, 'model_select', ctx); await settle();
   assert.equal(calls.length, 2);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{9}⠀$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{9}⠀ $/);
 });
 
 test('switches between supported providers cancel old requests and never display their late results', async (t) => {
@@ -1090,7 +1149,7 @@ test('switches between supported providers cancel old requests and never display
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'go-key' });
   await emit(runtime, 'model_select', ctx); await settle();
   resolveOld(Response.json(usagePayload(100))); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d $/);
 });
 
 test('Anthropic response headers provide accurate small percentages without fractional guessing', async (t) => {
@@ -1103,12 +1162,12 @@ test('Anthropic response headers provide accurate small percentages without frac
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'claude-token' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5}↻\d\d:\d\d $/);
   await emit(runtime, 'after_provider_response', ctx, { headers: {
     'anthropic-ratelimit-unified-5h-utilization': '0.35', 'anthropic-ratelimit-unified-5h-reset': String(Date.now() / 1000 + 7200),
     'anthropic-ratelimit-unified-7d-utilization': '0.95',
   } });
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d $/);
   t.mock.timers.tick(239999); await settle();
   assert.equal(calls.length, 1);
 });
@@ -1128,10 +1187,10 @@ test('Copilot monthly usage uses GitHub login token, ignores unlimited buckets, 
   await start(runtime, ctx); await settle();
   assert.equal(calls[0].url, 'https://api.github.com/copilot_internal/user');
   assert.equal(calls[0].init.headers.Authorization, 'token github-login-token');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻30d$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻30d $/);
   data = { quota_snapshots: { premium_interactions: { percent_remaining: 65 } } };
   t.mock.timers.tick(240000); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
   data = { quota_snapshots: { premium_interactions: { percent_remaining: 65, unlimited: true } } };
   t.mock.timers.tick(240000); await settle();
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]/);
@@ -1147,7 +1206,7 @@ test('provider API errors and malformed numbers dim cached usage; custom origins
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'minimax-key' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
   data = { base_resp: { status_code: 1004, status_msg: 'auth failed' } };
   t.mock.timers.tick(240000); await settle();
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
@@ -1175,5 +1234,5 @@ test('Kimi accepts the actual Pi OAuth bearer-header contract', async (t) => {
   await start(runtime, ctx); await settle();
   assert.equal(calls[0]?.url, 'https://api.kimi.com/coding/v1/usages');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer kimi-oauth-access');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
 });

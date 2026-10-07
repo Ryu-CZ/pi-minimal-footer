@@ -30,6 +30,7 @@ interface Settings {
     showModel?: boolean;
     showContext?: boolean;
     powerlineSeparator?: boolean;
+    maxUsageBarCells?: number;
   };
 }
 
@@ -43,6 +44,7 @@ const DEFAULT_SETTINGS: FooterSettings = {
   showModel: true,
   showContext: true,
   powerlineSeparator: true,
+  maxUsageBarCells: MAX_BAR_CELLS,
 };
 
 function settingsPath(): string {
@@ -74,7 +76,11 @@ function writeSettings(patch: Partial<Settings>): void {
 
 function readConfig(): FooterSettings {
   const s = readSettings();
-  return { ...DEFAULT_SETTINGS, ...s.minFooter };
+  const config = { ...DEFAULT_SETTINGS, ...s.minFooter };
+  if (typeof config.maxUsageBarCells !== "number" || !Number.isSafeInteger(config.maxUsageBarCells) || config.maxUsageBarCells < 1) {
+    config.maxUsageBarCells = MAX_BAR_CELLS;
+  }
+  return config;
 }
 
 function writeEnabled(v: boolean): void {
@@ -141,12 +147,14 @@ const MIN_STATUS_WIDTH = 12;
 function buildLine(
   width: number, path: string, statuses: string, branch: string, model: string, context: string,
   usage: (available: number, maxCells?: number) => string | null,
-  statusSeparator: string, locationSeparator: string,
+  statusSeparator: string, locationSeparator: string, maxUsageBarCells: number,
 ): string {
   if (width <= 0) return "";
+  if (width <= 2) return " ".repeat(width);
+  width -= 2;
   let core = [model, context].filter(Boolean).join(MODEL_GAP);
   // Budget the compact bar first; its expanded size must not drive truncation decisions.
-  const usageBar = usage(width) ?? "";
+  const usageBar = usage(width, Math.min(BASE_BAR_CELLS, maxUsageBarCells)) ?? "";
   const usageGapWidth = usageBar && core ? USAGE_GAP.length : 0;
   const coreBudget = Math.max(0, width - visibleWidth(usageBar) - usageGapWidth);
   if (usageBar && coreBudget < MIN_TEXT_WIDTH) {
@@ -182,11 +190,11 @@ function buildLine(
     // A dropped left group needs no divider; those columns belong to the usage bar instead.
     const interGroupGapWidth = left && right ? LOCATION_GAP_WIDTH : 0;
     const spareWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right) - interGroupGapWidth);
-    const expandedUsageBar = usage(visibleWidth(usageBar) + spareWidth, MAX_BAR_CELLS) ?? usageBar;
+    const expandedUsageBar = usage(visibleWidth(usageBar) + spareWidth, maxUsageBarCells) ?? usageBar;
     const expandedCore = [core, expandedUsageBar].filter(Boolean).join(USAGE_GAP);
     right = [fittedStatuses, expandedCore].filter(Boolean).join(statusSeparator);
   }
-  return left + " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right))) + right;
+  return " " + left + " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right))) + right + " ";
 }
 
 // ── Extension ─────────────────────────────────────────────────────────
@@ -251,6 +259,7 @@ export default function (pi: ExtensionAPI) {
             (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
             statusSeparator,
             config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
+            config.maxUsageBarCells ?? MAX_BAR_CELLS,
           );
           return [line];
         },

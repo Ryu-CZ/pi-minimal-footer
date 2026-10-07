@@ -9,9 +9,9 @@
 
 An opinionated, compact one-line footer for [Pi](https://github.com/earendil-works/pi).
 
-Path and branch on the left; extension statuses, model, context, and subscription usage bar on the right. Shrinks to fit narrow terminals. Interactive terminal UI only.
+Path and branch on the left; extension statuses, model, context, and subscription usage bar on the right. Shrinks to fit narrow terminals, with one space of padding at each edge. Interactive terminal UI only.
 
-![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42/200k · ⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h](media/github-preview.png)
+![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42/200k · [⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h](media/github-preview.png)
 
 ## Install
 
@@ -44,20 +44,22 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
     "showPath": true,
     "showModel": true,
     "showContext": true,
-    "powerlineSeparator": true
+    "powerlineSeparator": true,
+    "maxUsageBarCells": 10
   }
 }
 ```
 
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` also needs a compatible font; hide it with `showGitBranch: false` if needed.
+- `maxUsageBarCells` caps the Braille bar length (excluding brackets and reset time). Use a positive integer, e.g. `4` for a compact bar; invalid values fall back to `10`.
 - Context `42/200k` means tokens used / context window. `?` means Pi has not reported usage yet, including immediately after compaction.
 
 ## Reading subscription usage
 
-`⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀↻1d8h` shows **subscription allowance used**, not context usage.
+`[⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h` shows **subscription allowance used**, not context usage.
 
-- Bar: shown as `[cells]` with 5–10 cells, expanding into spare space; green below 85%, amber from 85%, red from 92%. The brackets keep the bar’s beginning and end visible even when it is empty. Dim means cached after a refresh failure. Very narrow terminals may show fewer cells or only the reset label.
+- Bar: shown as `[cells]` with 2–10 cells by default, expanding into spare space up to `maxUsageBarCells` (or fewer when the cap is below 2); green below 85%, amber from 85%, red from 92%. The brackets keep the bar’s beginning and end visible even when it is empty. Dim means cached after a refresh failure. Very narrow terminals may show fewer cells or only the reset label.
 - Reset: local `↻HH:mm` through 24 hours; whole days/hours above 24 hours (`↻1d8h`); whole days above 10 days (`↻12d`). Remaining durations round down. No reset reported means bar only.
 - Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 

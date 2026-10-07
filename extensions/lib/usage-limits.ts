@@ -14,7 +14,7 @@ const CELL_STEPS = 8;
 const PARTIAL_CELL_FILLS = ["", "⡀", "⣀", "⣄", "⣤", "⣦", "⣶", "⣷"];
 
 // Start compact so extra precision never steals space from the other footer fields.
-export const BASE_BAR_CELLS = 5;
+export const BASE_BAR_CELLS = 2;
 export const MAX_BAR_CELLS = 10;
 
 function formatResetLabel(resetAt: number | null, now: number): string {

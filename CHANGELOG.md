@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `minFooter.maxUsageBarCells` (default `10`) to cap the subscription usage bar length; use a positive integer such as `4` for a compact bar, excluding brackets and reset time
+
+### Changed
+
+- Reduce the compact subscription usage bar baseline from five to two cells before expanding into spare space up to the configured cap
+- Add one space at each footer edge, reserving those columns when fitting narrow terminals
+- Refresh README and package-gallery PNG previews with the current footer, edge padding, and live OpenAI Codex subscription usage
+
 ## [0.3.3] - 2026-10-07
 
 ### Changed
