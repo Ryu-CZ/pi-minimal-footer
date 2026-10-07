@@ -32,6 +32,7 @@ interface Settings {
     showModel?: boolean;
     showContext?: boolean;
     powerlineSeparator?: boolean;
+    gitRefreshSeconds?: number;
     maxUsageBarCells?: number;
   };
 }
@@ -48,6 +49,7 @@ const DEFAULT_SETTINGS: FooterSettings = {
   showModel: true,
   showContext: true,
   powerlineSeparator: true,
+  gitRefreshSeconds: 91,
   maxUsageBarCells: MAX_BAR_CELLS,
 };
 
@@ -81,6 +83,9 @@ function writeSettings(patch: Partial<Settings>): void {
 function readConfig(): FooterSettings {
   const s = readSettings();
   const config = { ...DEFAULT_SETTINGS, ...s.minFooter };
+  if (typeof config.gitRefreshSeconds !== "number" || !Number.isSafeInteger(config.gitRefreshSeconds) || config.gitRefreshSeconds < 1) {
+    config.gitRefreshSeconds = 91;
+  }
   if (typeof config.maxUsageBarCells !== "number" || !Number.isSafeInteger(config.maxUsageBarCells) || config.maxUsageBarCells < 1) {
     config.maxUsageBarCells = MAX_BAR_CELLS;
   }
@@ -282,10 +287,26 @@ export default function (pi: ExtensionAPI) {
       const request = () => tui.requestRender();
       requestRender = request;
       let disposed = false;
+      // External commits need to become visible even when Pi is idle. Local-only
+      // queries allow a shorter interval than usage polling without network traffic.
+      const gitRefreshMs = (config.gitRefreshSeconds ?? 91) * 1000;
+      let gitTimer: ReturnType<typeof setTimeout> | null = null;
+      const scheduleGitRefresh = () => {
+        if (disposed) return;
+        gitTimer = setTimeout(() => {
+          gitTimer = null;
+          void updateGitSync(state).then(() => tui.requestRender()).finally(scheduleGitRefresh);
+        }, gitRefreshMs);
+        // Do not keep a non-interactive process alive solely for footer refresh.
+        gitTimer.unref?.();
+      };
+      scheduleGitRefresh();
       const dispose = () => {
         if (disposed) return;
         disposed = true;
         unsub();
+        if (gitTimer) clearTimeout(gitTimer);
+        gitTimer = null;
         // A superseded renderer must not stop its replacement's usage polling.
         if (requestRender === request) {
           requestRender = null;
