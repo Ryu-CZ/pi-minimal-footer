@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-07
+
 ### Changed
 
 - Refresh local Git divergence while Pi is idle every 91 seconds by default, configurable through `minFooter.gitRefreshSeconds`; stop polling when the footer is disposed and never fetch remote refs
@@ -214,7 +216,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.4.2...v0.5.0

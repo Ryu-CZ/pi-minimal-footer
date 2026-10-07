@@ -1,6 +1,6 @@
 {
   "name": "pi-minimal-footer",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "An opinionated minimal footer extension for Pi — clean status line with path, extension statuses, model, and context usage.",
   "keywords": [
     "pi-package",
