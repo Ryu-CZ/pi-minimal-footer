@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add square brackets around the subscription usage bar so its beginning and end remain visible when empty
 - Randomize subscription usage fallback refreshes by ±⅛ of the four-minute interval (3.5–4.5 minutes), preserving reset-time checks and deadlines across unrelated window updates
+- Raise the subscription usage request timeout from five to nine seconds before aborting stalled authentication, fetch, or response-body waits
 
 ## [0.3.2] - 2026-10-06
 

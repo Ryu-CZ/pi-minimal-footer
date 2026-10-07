@@ -7,7 +7,7 @@ import type { UsageWindow } from "./usage-providers.js";
 
 const REFRESH_MS = 4 * 60_000;
 const REFRESH_JITTER_MS = REFRESH_MS / 8;
-const REQUEST_TIMEOUT_MS = 5000;
+const REQUEST_TIMEOUT_MS = 9000;
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
 const CELL_STEPS = 8;

@@ -649,7 +649,7 @@ test('usage request times out and retries later; effective custom origin or non-
   const { ctx, ui } = codexContext();
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  t.mock.timers.tick(5000); await settle();
+  t.mock.timers.tick(9000); await settle();
   assert.equal(calls[0].signal.aborted, true);
   assert.equal(hasUsageBar(ui), false);
   t.mock.timers.tick(235000); await settle();
@@ -706,7 +706,7 @@ test('never-settling credential lookup times out and releases the next fallback 
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
   assert.equal(lookups, 1);
-  t.mock.timers.tick(5000); await settle();
+  t.mock.timers.tick(9000); await settle();
   t.mock.timers.tick(235000); await settle();
   assert.equal(lookups, 2, 'timed-out authentication must release the active request');
   assert.equal(calls.length, 0);
@@ -725,7 +725,7 @@ test('credential resolution after timeout cannot fetch or overwrite a newer succ
     ? new Promise((resolve) => { resolveOld = resolve; }) : Promise.resolve(validAuth);
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  t.mock.timers.tick(5000); await settle();
+  t.mock.timers.tick(9000); await settle();
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 1, 'a fresh attempt succeeds after the old auth times out');
   assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d$/);
@@ -772,7 +772,7 @@ test('pending JSON consumption times out, dims cache, and ignores late bodies af
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
   t.mock.timers.tick(240000); await settle();
-  t.mock.timers.tick(5000); await settle();
+  t.mock.timers.tick(9000); await settle();
   assert.equal(calls[1].init.signal.aborted, true);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
   t.mock.timers.tick(235000); await settle();
