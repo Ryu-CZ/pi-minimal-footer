@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Restructure README with separate left/right feature lists, clearer context and subscription usage guidance, explicit adapter verification limits, and source installation under development
+- Refresh the vision contract for the two-cell baseline, bracketed bars, and nine-second timeout
+- Explain cache retention, refresh jitter, exact-model quota selection, and readability thresholds with rationale comments; update the source footer example to show brackets
+
+### Fixed
+
+- Restore reset-label-only usage on terminals too narrow for a bracketed cell, with regression coverage for reset-only, hidden-usage, and one-cell width boundaries
+- Align usage detection and regression expectations with bracketed bars, the two-cell baseline, bracket-aware width allocation, and ten-cell rounding for small percentages
 
 ## [0.4.0] - 2026-10-07
 

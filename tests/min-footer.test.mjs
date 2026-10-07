@@ -69,7 +69,7 @@ function provider(statuses = new Map([['skill', '技能 ✅'], ['empty', '  ']])
 
 const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
-const hasUsageBar = (ui) => /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+↻\d\d:\d\d $/.test(stripAnsi(ui.component.render(120)[0]));
+const hasUsageBar = (ui) => /\[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]↻\d\d:\d\d $/.test(stripAnsi(ui.component.render(120)[0]));
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const usagePayload = (used = 35, reset = Date.now() / 1000 + 7200) => ({ rate_limit: {
   primary_window: { used_percent: used, limit_window_seconds: 18000, reset_at: reset },
@@ -348,6 +348,9 @@ test('usage bar grows from two to ten cells using spare columns', async (t) => {
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻/);
   assert.match(stripAnsi(ui.component.render(12)[0]), /\[⣶⠀\]↻/);
   assert.match(stripAnsi(ui.component.render(13)[0]), /\[⣿⠀⠀\]↻/);
+  assert.match(stripAnsi(ui.component.render(8)[0]), /^ ↻\d\d:\d\d $/, 'reset alone survives when a bracketed cell cannot fit');
+  assert.equal(stripAnsi(ui.component.render(7)[0]), ' '.repeat(7), 'usage hides when even the reset label cannot fit');
+  assert.match(stripAnsi(ui.component.render(11)[0]), /^ \[⣄\]↻\d\d:\d\d $/, 'one bracketed cell fits at the boundary');
   assert.match(stripAnsi(ui.component.render(18)[0]), /^ \[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]{8}\]↻\d\d:\d\d $/, 'usage-only footer uses every available column');
   for (let width = 0; width <= 120; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
   await emit(runtime, 'session_shutdown', ctx);
@@ -359,7 +362,7 @@ test('usage joins the model section with spaces around the dot', async (t) => {
   const { ctx, ui } = codexContext();
   await start(runtime, ctx);
   await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12\/128k · [⠀⡀⣀⣄⣤⣦⣶⣷⣿]+/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12\/128k · \[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]/);
   await emit(runtime, 'session_shutdown', ctx);
 });
 
@@ -490,7 +493,7 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
   const lines = ui.component.render(120).map(stripAnsi);
   assert.equal(lines.length, 1);
   assert.match(lines[0], /project   main + 技能 ✅  test-model/);
-  assert.match(lines[0], /test-model · 12\/128k · ⣿{3}⣤⠀{6}↻16:40 $/);
+  assert.match(lines[0], /test-model · 12\/128k · \[⣿{3}⣤⠀{6}\]↻16:40 $/);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://chatgpt.com/backend-api/wham/usage');
   assert.equal(calls[0].init.headers['ChatGPT-Account-Id'], 'test-account');
@@ -504,7 +507,7 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
     assert.ok(visibleWidth(rendered[0]) <= width, `width=${width}`);
   }
   const narrow = stripAnsi(ui.component.render(32)[0]);
-  assert.match(narrow, /12\/128k · [⠀⡀⣀⣄⣤⣦⣶⣷⣿]{5}↻16:40 $/);
+  assert.match(narrow, /12\/128k · \[⣶⠀\]↻16:40 $/);
   assert.doesNotMatch(narrow, /project|技能|/);
   assert.match(stripAnsi(ui.component.render(10)[0]), /↻16:40 $/);
 });
@@ -576,7 +579,7 @@ test('Codex stream usage updates render without polling and ignore other provide
   await emit(runtime, 'provider_stream_event', ctx, { ...event, provider: 'anthropic' });
   assert.equal(hasUsageBar(ui), false);
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⠀{10}\]↻\d\d:\d\d $/);
 });
 
 test('provider switch cancels pending usage and discards late results, disable stops polling', async (t) => {
@@ -649,8 +652,8 @@ test('Braille fills bottom-up in eighth-cell steps with warning/error colors', a
       'X-Codex-Primary-Used-Percent': String(used), 'X-Codex-Primary-Window-Minutes': '300',
       'X-Codex-Primary-Reset-At': String(Date.now() / 1000 + 7200),
     } });
-    const line = ui.component.render(13)[0];
-    assert.match(stripAnsi(line), new RegExp(`^ ${filled}${empty}↻\\d\\d:\\d\\d $`));
+    const line = ui.component.render(15)[0];
+    assert.match(stripAnsi(line), new RegExp(`^ \\[${filled}${empty}\\]↻\\d\\d:\\d\\d $`));
     assert.ok(line.includes(theme.fg(color, filled)));
   }
 });
@@ -692,7 +695,7 @@ test('reset triggers a fresh check, failed refresh dims cached usage without a r
   data = usagePayload(0, Date.now() / 1000 + 18000);
   t.mock.timers.tick(1); await settle();
   assert.equal(calls.length, 3);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⠀{10}\]↻\d\d:\d\d $/);
 });
 
 test('usage request times out and retries later; effective custom origin or non-OAuth key is never sent', async (t) => {
@@ -787,7 +790,7 @@ test('credential resolution after timeout cannot fetch or overwrite a newer succ
   t.mock.timers.tick(9000); await settle();
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 1, 'a fresh attempt succeeds after the old auth times out');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻\d\d:\d\d $/);
   resolveOld(validAuth); await settle();
   assert.equal(calls.length, 1, 'late authentication must not issue a fetch');
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣤')));
@@ -807,7 +810,7 @@ test('switching provider during authentication ignores both late resolution and 
   await emit(runtime, 'model_select', ctx); await settle();
   resolveOld(validAuth); await settle();
   assert.equal(calls.length, 1);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{7}⠀{3}\]↻\d\d:\d\d $/);
   let rejectOld;
   ctx.model = { id: 'codex', provider: 'openai-codex', baseUrl: 'https://chatgpt.com/backend-api' };
   ctx.modelRegistry.getApiKeyAndHeaders = () => new Promise((_resolve, reject) => { rejectOld = reject; });
@@ -837,7 +840,7 @@ test('pending JSON consumption times out, dims cache, and ignores late bodies af
   t.mock.timers.tick(235000); await settle();
   assert.equal(calls.length, 3);
   resolveBody(usagePayload(100)); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{7}⠀{3}\]↻\d\d:\d\d $/);
   assert.ok(ui.component.render(120)[0].includes(theme.fg('success', '⣿⣿⣿⣿⣿⣿⣿')));
 });
 
@@ -897,14 +900,14 @@ for (const providerName of ['openai-codex', 'anthropic']) {
         'x-codex-secondary-used-percent': '96', 'x-codex-secondary-window-minutes': '10080',
         'x-codex-secondary-reset-at': String(reset + 604800),
       } : { 'anthropic-ratelimit-unified-7d-utilization': '0.96' } });
-      assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00 $/);
+      assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻14:00 $/);
       assert.equal(calls.length, 1);
     }
     t.mock.timers.tick(1); await settle();
     assert.equal(calls.length, 2, 'longer-window signals cannot postpone short-window fallback');
     await emit(runtime, 'after_provider_response', ctx, { headers: providerName === 'openai-codex'
       ? { 'x-codex-primary-used-percent': '70' } : { 'anthropic-ratelimit-unified-5h-utilization': '0.70' } });
-    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:00 $/,
+    assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{7}⠀{3}\]↻14:00 $/,
       'usage-only updates retain compatible duration and reset metadata');
   });
 }
@@ -921,12 +924,12 @@ test('Codex partial streams merge stable window keys and preserve omitted short-
     secondary: { used_percent: 96, window_minutes: 10080 },
   } } };
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻14:00 $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻14:00 $/);
   t.mock.timers.tick(60000); await settle();
   assert.equal(calls.length, 2);
   event.data.rate_limits = { primary: { used_percent: 70 } };
   await emit(runtime, 'provider_stream_event', ctx, event);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{7}⠀{3}↻14:04 $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{7}⠀{3}\]↻14:04 $/);
 });
 
 test('weekly-only passive signals do not cancel an in-flight short-window fallback or undim failed cache', async (t) => {
@@ -958,7 +961,7 @@ test('endpoint snapshots replace passive windows and status-only passive respons
   await start(runtime, ctx); await settle();
   data = { rate_limit: { secondary_window: { used_percent: 100, limit_window_seconds: 604800 } } };
   t.mock.timers.tick(240000); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{10} $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{10}\] $/);
   data = { rate_limit: null };
   t.mock.timers.tick(240000); await settle();
   assert.equal(hasUsageBar(ui), false);
@@ -1110,7 +1113,7 @@ test('upstream rolling-usage providers render only their short window and use th
     ctx.model = { id: 'test-model', provider: providerName, baseUrl };
     await start(runtime, ctx); await settle();
     assert.equal(calls.at(-1)?.url, endpoint);
-    assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d $/);
+    assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻\d\d:\d\d $/);
     assert.equal(calls.at(-1).init.headers.Authorization, 'Bearer provider-token');
   }
 });
@@ -1126,14 +1129,14 @@ test('Gemini uses selected model usage, omits unknown reset time, and refreshes 
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'gemini-access' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /↻/);
   assert.equal(calls[0].url, 'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota');
   assert.equal(calls[0].init.method, 'POST');
   ctx.model = { ...ctx.model, id: 'gemini-flash' };
   await emit(runtime, 'model_select', ctx); await settle();
   assert.equal(calls.length, 2);
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{9}⠀ $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{9}⠀\] $/);
 });
 
 test('switches between supported providers cancel old requests and never display their late results', async (t) => {
@@ -1149,7 +1152,7 @@ test('switches between supported providers cancel old requests and never display
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'go-key' });
   await emit(runtime, 'model_select', ctx); await settle();
   resolveOld(Response.json(usagePayload(100))); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{10}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⠀{10}\]↻\d\d:\d\d $/);
 });
 
 test('Anthropic response headers provide accurate small percentages without fractional guessing', async (t) => {
@@ -1162,12 +1165,12 @@ test('Anthropic response headers provide accurate small percentages without frac
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'claude-token' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⠀{5}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⡀⠀{9}\]↻\d\d:\d\d $/);
   await emit(runtime, 'after_provider_response', ctx, { headers: {
     'anthropic-ratelimit-unified-5h-utilization': '0.35', 'anthropic-ratelimit-unified-5h-reset': String(Date.now() / 1000 + 7200),
     'anthropic-ratelimit-unified-7d-utilization': '0.95',
   } });
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻\d\d:\d\d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻\d\d:\d\d $/);
   t.mock.timers.tick(239999); await settle();
   assert.equal(calls.length, 1);
 });
@@ -1187,10 +1190,10 @@ test('Copilot monthly usage uses GitHub login token, ignores unlimited buckets, 
   await start(runtime, ctx); await settle();
   assert.equal(calls[0].url, 'https://api.github.com/copilot_internal/user');
   assert.equal(calls[0].init.headers.Authorization, 'token github-login-token');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6}↻30d $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻30d $/);
   data = { quota_snapshots: { premium_interactions: { percent_remaining: 65 } } };
   t.mock.timers.tick(240000); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
   data = { quota_snapshots: { premium_interactions: { percent_remaining: 65, unlimited: true } } };
   t.mock.timers.tick(240000); await settle();
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]/);
@@ -1206,7 +1209,7 @@ test('provider API errors and malformed numbers dim cached usage; custom origins
   ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'minimax-key' });
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   await start(runtime, ctx); await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
   data = { base_resp: { status_code: 1004, status_msg: 'auth failed' } };
   t.mock.timers.tick(240000); await settle();
   assert.ok(ui.component.render(120)[0].includes(theme.fg('dim', '⣿⣿⣿⣤')));
@@ -1234,5 +1237,5 @@ test('Kimi accepts the actual Pi OAuth bearer-header contract', async (t) => {
   await start(runtime, ctx); await settle();
   assert.equal(calls[0]?.url, 'https://api.kimi.com/coding/v1/usages');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer kimi-oauth-access');
-  assert.match(stripAnsi(ui.component.render(120)[0]), /⣿{3}⣤⠀{6} $/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
 });

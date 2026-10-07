@@ -1,7 +1,7 @@
 /**
  * Minimal footer — replaces pi's default footer with a clean status line:
  *
- *   ~/path/to/dir   main        status1  status2  sonnet · 12/128k · ⣿⣶⠀⠀⠀↻16:40
+ *   ~/path/to/dir   main        status1  status2  sonnet · 12/128k · [⣿⣶⠀⠀⠀]↻16:40
  *
  * Settings are persisted in the agent directory (usually ~/.pi/agent)
  * settings.json under "minFooter".
@@ -141,6 +141,7 @@ function updateState(ctx: ExtensionContext, state: FooterState): void {
 const MODEL_GAP = " · ";
 const USAGE_GAP = " · ";
 const LOCATION_GAP_WIDTH = 3;
+// Below these budgets, ellipses dominate text and status tabs stop being useful at a glance.
 const MIN_TEXT_WIDTH = 4;
 const MIN_STATUS_WIDTH = 12;
 

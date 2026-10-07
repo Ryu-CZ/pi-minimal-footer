@@ -186,6 +186,7 @@ export class UsageLimits {
     this.render();
   }
 
+  // Independent deadlines spread fallback requests across sessions sharing a subscription.
   private randomizeRefresh(): void {
     this.refreshDelay = REFRESH_MS + (Math.random() * 2 - 1) * REFRESH_JITTER_MS;
   }
@@ -246,8 +247,11 @@ export class UsageLimits {
     if (!this.ctx || !window) return null;
     const now = Date.now();
     const resetLabel = formatResetLabel(window.resetAt, now);
-    // Reserve two columns for brackets so an empty bar still has clear edges.
-    if (width < (resetLabel.length || 1) + 3) return null;
+    // Keep the reset useful when the terminal cannot fit even one bracketed cell.
+    if (width < resetLabel.length + 3) {
+      return resetLabel && width >= resetLabel.length ? theme.fg("dim", resetLabel) : null;
+    }
+    // Brackets keep the edges of a zero-usage bar visible.
     const cells = Math.min(maxCells, Math.max(1, width - resetLabel.length - 2));
     const steps = Math.round(window.used / 100 * cells * CELL_STEPS);
     const filled = "⣿".repeat(Math.floor(steps / CELL_STEPS)) + PARTIAL_CELL_FILLS[steps % CELL_STEPS];

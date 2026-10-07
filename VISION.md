@@ -18,9 +18,9 @@ The [README](README.md) is the user manual. This document records current design
 
 Reserve the usage bar and model/context before allocating location and statuses. Statuses and location may shorten or disappear; on sufficiently narrow terminals, model/context can also shorten or disappear.
 
-Lay out other fields with a five-cell usage bar first. Grow the bar only into leftover columns, up to ten cells—never truncate another field solely to enlarge it. At extreme widths, shrink below five cells, show only the reset label, or hide the usage bar if the label cannot fit.
+Lay out other fields with a two-cell usage bar first. Grow the bar only into leftover columns, up to ten cells—never truncate another field solely to enlarge it. At extreme widths, shrink to one cell, show only the reset label, or hide usage if neither can fit. Brackets keep an empty bar's edges visible and count toward its width, but not its cell cap.
 
-Five cells give 2.5% steps; ten give 1.25%. Fill rounds to the nearest eighth-cell step. Only the final partially filled cell uses an intermediate shade:
+Two cells give 6.25% steps; ten give 1.25%. Fill rounds to the nearest eighth-cell step. Only the final partially filled cell uses an intermediate shade:
 
 | Cell | Fill |
 |---|---|
@@ -57,7 +57,7 @@ Reuse Pi's selected-provider credentials. Copilot uses the GitHub login token fr
 - Consume passive Codex response headers/stream events and Claude quota headers when available.
 - Otherwise fetch on startup/provider switch, then roughly every four minutes without a fresh response update. Sample independent uniform ±⅛ jitter (3.5–4.5 minutes) for each attempt or fresh displayed-window update to spread fallback requests across sessions. Keep that deadline across unrelated window updates; a reported reset time still triggers an earlier refresh.
 - Merge partial windows. A weekly-only signal must not replace a cached shorter window or postpone its refresh.
-- Bound authentication, fetch, and response-body parsing by a shared five-second timeout. Release stalled work so polling can recover.
+- Bound authentication, fetch, and response-body parsing by a shared nine-second timeout. Release stalled work so polling can recover.
 - Provider switches clear usage immediately, cancel pending work, and invalidate late results. Gemini model switches also refresh model-specific usage.
 - Missing credentials and explicit empty/unlimited responses clear usage. Temporary authentication, network, or parsing failures retain only the current provider's cached usage, dimmed; without cache, hide it.
 - Invalid optional reset metadata must not discard otherwise valid usage. Zero usage is an empty bar, not an absent usage bar.

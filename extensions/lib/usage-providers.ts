@@ -136,6 +136,8 @@ export function parseUsageWindows(provider: string, model: string, payload: unkn
     if (window) windows[key] = window;
     else malformed = true;
   };
+  // Valid siblings remain useful; explicit absence clears cache, while malformed
+  // snapshots throw so a temporary provider failure retains dimmed cached usage.
   const finish = () => {
     if (Object.keys(windows).length) return windows;
     if (recognized && !malformed) return null;
@@ -247,6 +249,7 @@ export function parseUsageWindows(provider: string, model: string, payload: unkn
     if (!ok) malformed = true;
     return ok;
   });
+  // A malformed exact match must not substitute another model family's quota.
   const hasExact = buckets.some((b) => b.modelId === model);
   const family = model.toLowerCase().includes("flash") ? "flash" : model.toLowerCase().includes("pro") ? "pro" : null;
   const selected = valid.filter((b) => hasExact ? b.modelId === model : family && String(b.modelId).toLowerCase().includes(family));
