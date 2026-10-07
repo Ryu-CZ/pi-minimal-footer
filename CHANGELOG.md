@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-07
+
 ### Changed
 
 - Restructure README with separate left/right feature lists, clearer context and subscription usage guidance, explicit adapter verification limits, and source installation under development
