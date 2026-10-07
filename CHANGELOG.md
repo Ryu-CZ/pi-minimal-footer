@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-07
+
+### Fixed
+
+- Point pi.dev package preview metadata to a dedicated 16:9 PNG (1280×720), preserving the footer image without stretching or cropping
+
 ## [0.4.1] - 2026-10-07
 
 ### Changed
@@ -180,7 +186,10 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.3.0...v0.3.1
