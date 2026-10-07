@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-07
+
 ### Added
 
 - `minFooter.maxUsageBarCells` (default `10`) to cap the subscription usage bar length; use a positive integer such as `4` for a compact bar, excluding brackets and reset time
