@@ -7,7 +7,7 @@
   <a href="https://pi.dev/packages/pi-minimal-footer"><img src="https://img.shields.io/badge/pi-package-1a1a2e" alt="pi package"></a>
 </p>
 
-An opinionated, compact one-line footer for [Pi](https://github.com/earendil-works/pi).
+Pi minimal footer is an opinionated, compact, one-line status bar for [Pi](https://github.com/earendil-works/pi).
 
 ![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42/200k · [⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h](media/github-preview.png)
 
