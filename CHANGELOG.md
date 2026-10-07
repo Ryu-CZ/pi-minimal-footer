@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bold changed Git divergence arrows/counts for two user submissions; further changes restart the highlight, while tool turns and extension prompts do not consume it
+
 ## [0.5.0] - 2026-10-07
 
 ### Added

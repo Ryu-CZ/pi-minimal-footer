@@ -116,6 +116,9 @@ interface FooterState {
   model: string;
   context: string;
   gitSync: string;
+  gitInitialized: boolean;
+  gitHighlightInputs: number;
+  gitRequest: number;
 }
 
 async function getGitSync(cwd: string): Promise<string> {
@@ -139,12 +142,23 @@ async function getGitSync(cwd: string): Promise<string> {
 
 async function updateGitSync(state: FooterState): Promise<void> {
   const cwd = state.cwd;
+  const request = ++state.gitRequest;
   const gitSync = await getGitSync(cwd);
-  if (state.cwd === cwd) state.gitSync = gitSync;
+  // Refresh events can overlap; an older result must not restart the highlight.
+  if (state.cwd !== cwd || request !== state.gitRequest) return;
+  if (state.gitInitialized && state.gitSync !== gitSync) state.gitHighlightInputs = 2;
+  state.gitSync = gitSync;
+  state.gitInitialized = true;
 }
 
 function updateState(ctx: ExtensionContext, state: FooterState): void {
-  state.cwd = ctx.cwd ?? process.cwd();
+  const cwd = ctx.cwd ?? process.cwd();
+  if (state.cwd !== cwd) {
+    state.gitSync = "";
+    state.gitInitialized = false;
+    state.gitHighlightInputs = 0;
+  }
+  state.cwd = cwd;
   state.model = ctx.model?.id ?? "no-model";
   const usage = ctx.getContextUsage();
   if (usage) {
@@ -233,7 +247,10 @@ function buildLine(
 export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
-  const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?", gitSync: "" };
+  const state: FooterState = {
+    cwd: process.cwd(), model: "no-model", context: "?", gitSync: "",
+    gitInitialized: false, gitHighlightInputs: 0, gitRequest: 0,
+  };
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
   const usageLimits = new UsageLimits(() => requestRender?.());
@@ -284,7 +301,8 @@ export default function (pi: ExtensionAPI) {
             ? [...footerData.getExtensionStatuses().values()].filter((s) => s.trim())
             : [];
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
-          const branchText = branch ? `${branch}${state.gitSync}` : "";
+          const syncText = state.gitHighlightInputs > 0 ? theme.bold(state.gitSync) : state.gitSync;
+          const branchText = branch ? `${branch}${syncText}` : "";
           const statusSeparator = config.powerlineSeparator ? theme.fg("dim", "  ") : " ";
           const line = buildLine(
             width,
@@ -320,6 +338,13 @@ export default function (pi: ExtensionAPI) {
     usageLimits.stop();
     refresh(ctx);
     install(ctx);
+  });
+
+  // Count user submissions, not turn_end: one prompt can trigger many tool turns.
+  // Extension-generated prompts do not consume the user's highlight window.
+  pi.on("input", (event, ctx) => {
+    if (event.source !== "extension" && state.gitHighlightInputs > 0) state.gitHighlightInputs--;
+    refresh(ctx);
   });
 
   pi.on("model_select", async (_event, ctx) => {

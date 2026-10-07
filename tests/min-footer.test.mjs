@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -1238,4 +1239,50 @@ test('Kimi accepts the actual Pi OAuth bearer-header contract', async (t) => {
   assert.equal(calls[0]?.url, 'https://api.kimi.com/coding/v1/usages');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer kimi-oauth-access');
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
+});
+
+test('Git changes highlight counts for two user inputs, not tool turns, and restart on changes', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'footer-git-'));
+  const git = (...args) => execFileSync('git', ['-C', cwd, ...args], { stdio: 'pipe' });
+  let pending;
+  const { ctx, ui } = makeContext({ cwd, renderTheme: { fg: (color, s) => theme.fg(color, s), bold: (s) => `<bold>${s}</bold>` },
+    tui: { requestRender() { pending?.(); } } });
+  const runtime = await installExtension();
+  const waitFor = async (action, predicate) => {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { pending = undefined; reject(new Error('Git refresh timed out')); }, 2000);
+      pending = () => {
+        if (ui.component && predicate(ui.component.render(160)[0])) {
+          clearTimeout(timer); pending = undefined; resolve();
+        }
+      };
+      void action().catch(reject);
+    });
+  };
+  try {
+    git('init', '-b', 'main');
+    git('config', 'user.name', 'Test');
+    git('config', 'user.email', 'test@example.com');
+    git('commit', '--allow-empty', '-m', 'base');
+    git('branch', 'upstream');
+    git('branch', '--set-upstream-to=upstream');
+    git('commit', '--allow-empty', '-m', 'one');
+    await waitFor(() => start(runtime, ctx), (s) => s.includes(' ↑1'));
+    assert.doesNotMatch(ui.component.render(160)[0], /<bold> ↑1/);
+    git('commit', '--allow-empty', '-m', 'two');
+    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> ↑2</bold>'));
+    await emit(runtime, 'turn_end', ctx);
+    await emit(runtime, 'input', ctx, { source: 'extension' });
+    await emit(runtime, 'input', ctx, { source: 'interactive' });
+    assert.match(ui.component.render(160)[0], /<bold> ↑2<\/bold>/);
+    git('commit', '--allow-empty', '-m', 'three');
+    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> ↑3</bold>'));
+    await emit(runtime, 'input', ctx, { source: 'interactive' });
+    assert.match(ui.component.render(160)[0], /<bold> ↑3<\/bold>/);
+    await emit(runtime, 'input', ctx, { source: 'interactive' });
+    assert.doesNotMatch(ui.component.render(160)[0], /<bold> ↑3/);
+  } finally {
+    await emit(runtime, 'session_shutdown', ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

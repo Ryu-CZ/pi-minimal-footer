@@ -13,7 +13,7 @@ The [README](README.md) is the user manual. This document records current design
 - Model, context, and subscription usage form the rightmost group, separated by ` · `. Model identifies the running engine; context describes its usage; the usage bar stays anchored at the right edge.
 - Powerline separators are dim. `powerlineSeparator: false` replaces them with a single space. Font availability cannot be detected reliably.
 - Measure terminal columns with `visibleWidth`, not string length. Preserve ANSI styling and wide-character accounting when truncating.
-- Git divergence refreshes on Pi's branch-change signal and normal footer state refreshes; it is best-effort and never allowed to prevent the footer from loading.
+- Git divergence refreshes on Pi's branch-change signal and normal footer state refreshes; it is best-effort and never allowed to prevent the footer from loading. Changed counts are bold until two subsequent user submissions, not tool turns; changes restart that window. Initial loading and working-directory changes establish an unhighlighted baseline. Overlapping queries ignore older results.
 
 ### Space allocation
 
