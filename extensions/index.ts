@@ -271,6 +271,9 @@ export default function (pi: ExtensionAPI) {
   const usageLimits = new UsageLimits(() => requestRender?.());
   let gitPulseTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Pulse the whole section for one second to call attention without persistent emphasis
+  // or turn-count bookkeeping; foreground color independently shows sync state.
+  // Design contract: VISION.md#git-contract.
   async function refreshGit(): Promise<void> {
     if (!await updateGitSync(state) || disposeFooter === null) return;
     if (gitPulseTimer) clearTimeout(gitPulseTimer);
@@ -409,7 +412,7 @@ export default function (pi: ExtensionAPI) {
     selectUsage(ctx);
   }
 
-  /** Cheap refresh: update plain state and request one render. */
+  /** Gate active work on a live footer so passive state updates cannot resurrect hidden Git queries. */
   function refreshFooter(): void {
     if (disposeFooter === null) return;
     void refreshGit().then(() => requestRender?.());

@@ -41,7 +41,7 @@ The bar and reset label have no intervening space. Reset formatting uses local c
 - Pi supplies the branch name. Query `git rev-list --left-right --count HEAD...@{upstream}` for `↑N` local-only and `↓N` upstream-only commits. Use local refs; no remote fetch by default.
 - Query outside rendering with a one-second timeout so Git cannot block the TUI. Missing upstreams and command failures omit counts.
 - Refresh on branch-change signals and footer state updates, plus every 91 seconds while the footer is active so external commits are noticed even when Pi is idle. `minFooter.gitRefreshSeconds` accepts integer seconds from 1 through 2,147,483 (Node's maximum timer delay); invalid values fall back to 91. Local-only queries permit a shorter interval than subscription usage polling without network traffic. Stop the timer on footer disposal. Ignore older query results to prevent stale counts from restarting highlights.
-- Use the theme's normal text foreground while unsynced, otherwise dim. A count change pulses the whole Git section (icon, branch, and counts) bold for one second; further changes restart the timer. Expiry requests a redraw even while idle. User submissions and tool turns do not affect the pulse. Dispose cancels the timer.
+- Use the theme's normal text foreground while unsynced, otherwise dim. A count change pulses the whole Git section (icon, branch, and counts) bold for one second to call attention without persistent emphasis or turn-count bookkeeping; this is independent of synced/unsynced foreground color. Further changes restart the timer. Expiry requests a redraw even while idle. User submissions and tool turns do not affect the pulse. Dispose cancels the timer.
 - Initial loading and working-directory changes establish an unhighlighted baseline. Zero counts hide the arrows entirely.
 - `minFooter.gitFetch` (default `false`) opts into asynchronous `git fetch --quiet` on footer startup and every five minutes with ±⅛ jitter (262.5–337.5 seconds), sampled after each completed attempt. Jitter spreads network load across sessions; local divergence polling remains independent. Disable interactive credential prompts; failures are silent and retry at the next interval. `gitFetchTimeoutSeconds` accepts integer seconds from 1 through 2,147,483 (Node's maximum timer delay), default/fallback 17. Successful fetches refresh divergence. Footer disposal clears the timer and aborts an in-flight fetch; only interactive sessions with an active footer fetch.
 
@@ -115,7 +115,7 @@ Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` re
 
 ### Code map
 
-- `extensions/index.ts`: settings, state refresh, layout, footer lifecycle, and `/minfooter`.
+- `extensions/index.ts`: settings, plain state updates, active-footer refresh gate, layout, footer lifecycle, and `/minfooter`.
 - `extensions/lib/usage-limits.ts`: usage refresh, cache, cancellation, and bar/reset rendering.
 - `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and response normalization.
 - `tests/`: lifecycle/layout regressions, Git highlighting with a temporary repository, and usage parsing tests.
