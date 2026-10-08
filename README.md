@@ -95,7 +95,20 @@ Counts require a configured upstream. Unsynced branches use normal text color; s
 - Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 - Virtual/routed models show model and context usage, but no subscription bar.
 
-Implemented adapters: **OpenAI Codex, Claude OAuth, GitHub Copilot, Gemini CLI, MiniMax, Kimi Coding, and OpenCode Go**. Uses Pi's existing credentials; ordinary Claude API keys do not expose subscription usage. Authenticated endpoints remain unverified live; see [verification limits](VISION.md).
+#### Adapters
+
+Adapters use Pi's existing credentials; ordinary Claude API keys do not expose subscription usage.
+
+*Authenticated endpoints remain unverified live; see [verification limits](VISION.md).*
+
+Implemented adapters:
+ - **OpenAI Codex**
+ - **Claude OAuth**
+ - **GitHub Copilot**
+ - **Gemini CLI**
+ - **MiniMax**
+ - **Kimi Coding**
+ - **OpenCode Go**
 
 ### Extension statuses
 
