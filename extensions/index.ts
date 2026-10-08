@@ -33,6 +33,8 @@ interface Settings {
     showContext?: boolean;
     powerlineSeparator?: boolean;
     gitRefreshSeconds?: number;
+    gitFetch?: boolean;
+    gitFetchTimeoutSeconds?: number;
     maxUsageBarCells?: number;
   };
 }
@@ -50,6 +52,8 @@ const DEFAULT_SETTINGS: FooterSettings = {
   showContext: true,
   powerlineSeparator: true,
   gitRefreshSeconds: 91,
+  gitFetch: false,
+  gitFetchTimeoutSeconds: 17,
   maxUsageBarCells: MAX_BAR_CELLS,
 };
 
@@ -85,6 +89,9 @@ function readConfig(): FooterSettings {
   const config = { ...DEFAULT_SETTINGS, ...s.minFooter };
   if (typeof config.gitRefreshSeconds !== "number" || !Number.isSafeInteger(config.gitRefreshSeconds) || config.gitRefreshSeconds < 1) {
     config.gitRefreshSeconds = 91;
+  }
+  if (typeof config.gitFetchTimeoutSeconds !== "number" || !Number.isSafeInteger(config.gitFetchTimeoutSeconds) || config.gitFetchTimeoutSeconds < 1) {
+    config.gitFetchTimeoutSeconds = 17;
   }
   if (typeof config.maxUsageBarCells !== "number" || !Number.isSafeInteger(config.maxUsageBarCells) || config.maxUsageBarCells < 1) {
     config.maxUsageBarCells = MAX_BAR_CELLS;
@@ -301,12 +308,48 @@ export default function (pi: ExtensionAPI) {
         gitTimer.unref?.();
       };
       scheduleGitRefresh();
+      let fetchTimer: ReturnType<typeof setTimeout> | null = null;
+      let fetchController: AbortController | null = null;
+      const fetchTimeoutMs = (config.gitFetchTimeoutSeconds ?? 17) * 1000;
+      const fetchGit = async () => {
+        if (disposed) return;
+        const cwd = state.cwd;
+        fetchController = new AbortController();
+        try {
+          // Never prompt for credentials in a background job. Jitter spreads
+          // network requests from concurrent Pi sessions; local polling stays independent.
+          await execFileAsync("git", ["-C", cwd, "fetch", "--quiet"], {
+            timeout: fetchTimeoutMs,
+            signal: fetchController.signal,
+            env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
+          });
+          if (!disposed && state.cwd === cwd) {
+            await updateGitSync(state);
+            if (!disposed) tui.requestRender();
+          }
+        } catch {
+          // Offline, authentication, timeout and cancellation failures are silent.
+        } finally {
+          fetchController = null;
+          if (!disposed) {
+            fetchTimer = setTimeout(() => {
+              fetchTimer = null;
+              void fetchGit();
+            }, 5 * 60 * 1000 * (1 + (Math.random() * 2 - 1) / 8));
+            fetchTimer.unref?.();
+          }
+        }
+      };
+      if (config.gitFetch === true) void fetchGit();
       const dispose = () => {
         if (disposed) return;
         disposed = true;
         unsub();
         if (gitTimer) clearTimeout(gitTimer);
         gitTimer = null;
+        if (fetchTimer) clearTimeout(fetchTimer);
+        fetchTimer = null;
+        fetchController?.abort();
         // A superseded renderer must not stop its replacement's usage polling.
         if (requestRender === request) {
           requestRender = null;

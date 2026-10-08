@@ -1,8 +1,9 @@
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -107,6 +108,40 @@ test.beforeEach(async () => {
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, showGitBranch: true, showSkills: true, showPath: true, showModel: true, showContext: true } }));
 });
 test.after(async () => { await rm(agentDir, { recursive: true, force: true }); await rm(homeDir, { recursive: true, force: true }); });
+
+for (const [random, interval] of [[0, 262500], [0.5, 300000], [1, 337500]]) {
+  test(`opt-in Git fetch starts immediately, retries silent failures after ${interval}ms, and stops on disposal`, async (t) => {
+    const bin = await mkdtemp(join(tmpdir(), 'footer-fetch-'));
+    const log = join(bin, 'calls');
+    await writeFile(join(bin, 'git'), `#!/bin/sh\nif [ "$3" = fetch ]; then echo fetch >> '${log}'; exit 1; fi\necho '0 0'\n`);
+    await chmod(join(bin, 'git'), 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${bin}:${oldPath}`;
+    t.after(async () => { process.env.PATH = oldPath; await rm(bin, { recursive: true, force: true }); });
+    t.mock.method(Math, 'random', () => random);
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext();
+    t.after(() => ui.component?.dispose());
+    await start(runtime, ctx);
+    await delay(50);
+    assert.equal(await readFile(log, 'utf8').catch(() => ''), '', 'disabled by default');
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { gitFetch: true, gitFetchTimeoutSeconds: 'invalid' } }));
+    await runtime.commands.get('minfooter').handler('on', ctx);
+    await delay(50);
+    assert.equal(await readFile(log, 'utf8'), 'fetch\n');
+    t.mock.timers.tick(interval - 1);
+    await delay(50);
+    assert.equal(await readFile(log, 'utf8'), 'fetch\n');
+    t.mock.timers.tick(1);
+    await delay(50);
+    assert.equal(await readFile(log, 'utf8'), 'fetch\nfetch\n');
+    ui.component.dispose();
+    t.mock.timers.tick(interval * 2);
+    await delay(50);
+    assert.equal(await readFile(log, 'utf8'), 'fetch\nfetch\n');
+  });
+}
 
 test('each real loader call creates isolated lifecycle handlers without message_end', async () => {
   const ext = await installExtension();

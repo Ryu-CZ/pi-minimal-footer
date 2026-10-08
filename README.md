@@ -63,6 +63,8 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
     "showContext": true,
     "powerlineSeparator": true,
     "gitRefreshSeconds": 91,
+    "gitFetch": false,
+    "gitFetchTimeoutSeconds": 17,
     "maxUsageBarCells": 10
   }
 }
@@ -70,7 +72,9 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
-- `gitRefreshSeconds`: local Git refresh interval; positive integer seconds; default/fallback `91`; no remote fetch.
+- `gitRefreshSeconds`: local Git refresh interval; positive integer seconds; default/fallback `91`.
+- `gitFetch`: opt-in background fetch on footer startup; then every 5 minutes ±⅛ (262.5–337.5 seconds); silent failures; default `false`.
+- `gitFetchTimeoutSeconds`: fetch timeout; positive integer seconds; default/fallback `17`.
 - `maxUsageBarCells` caps the Braille bar length (excluding brackets and reset time). Use a positive integer, e.g. `4` for a compact bar; invalid values fall back to `10`.
 
 ## Reading the footer

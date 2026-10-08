@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `minFooter.gitFetch` background fetch on footer startup and every five minutes with ±⅛ jitter; silent failures, no interactive credential prompts, configurable `gitFetchTimeoutSeconds` (default 17), and cancellation on footer disposal
+
 ## [0.5.3] - 2026-10-07
 
 ### Changed
