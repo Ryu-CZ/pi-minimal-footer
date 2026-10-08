@@ -261,6 +261,33 @@ for (const replacement of [undefined, () => ({ render: () => ['other footer'], d
   });
 }
 
+test('virtual selection cancels quota lookup and ignores late endpoint and provider events', async (t) => {
+  let finishFetch;
+  const calls = fakeUsageFetch(t, () => new Promise((resolve) => { finishFetch = resolve; }));
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx);
+  await settle();
+  assert.equal(calls.length, 1);
+
+  // Pi's virtual catalog entries retain the listed provider but have no API origin.
+  ctx.model = { ...ctx.model, id: 'auto', api: 'pi-virtual', baseUrl: '' };
+  await emit(runtime, 'model_select', ctx);
+  assert.equal(calls[0].init.signal.aborted, true);
+  finishFetch(Response.json(usagePayload()));
+  await settle();
+  await emit(runtime, 'after_provider_response', ctx, {
+    headers: { 'x-codex-primary-used-percent': '35', 'x-codex-primary-window-minutes': '300' },
+  });
+  await emit(runtime, 'provider_stream_event', ctx, {
+    provider: 'openai-codex', model: 'test-model', data: usagePayload(),
+  });
+  assert.equal(hasUsageBar(ui), false);
+  assert.equal(calls.length, 1, 'virtual selection must not start a quota lookup');
+  assert.match(stripAnsi(ui.component.render(120)[0]), /auto/);
+});
+
 test('reset labels use clock time, days/hours, then days only without overflowing', async (t) => {
   const now = 1791200000000;
   const hour = 60 * 60 * 1000;

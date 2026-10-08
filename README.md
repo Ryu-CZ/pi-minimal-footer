@@ -92,6 +92,7 @@ Counts require a configured upstream. Unsynced branches use the theme's normal f
 - **Cached data:** dim after a refresh failure.
 - Reset: local `↻HH:mm` through 24 hours; whole days/hours above 24 hours (`↻1d8h`); whole days above 10 days (`↻12d`). Remaining durations round down. No reset reported means bar only.
 - Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
+- Virtual/routed selections show the selected model name and Pi's context usage, but no subscription bar. The physical provider may change between requests; this footer does not infer quota ownership from routed responses.
 
 Implemented adapters: **OpenAI Codex, Claude OAuth, GitHub Copilot, Gemini CLI, MiniMax, Kimi Coding, and OpenCode Go**. Uses Pi's existing credentials; ordinary Claude API keys do not expose subscription usage. Authenticated endpoints remain unverified live; see [verification limits](VISION.md).
 
