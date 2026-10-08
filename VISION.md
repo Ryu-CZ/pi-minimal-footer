@@ -80,7 +80,7 @@ The comparison with [mtrojnar/pi-usage](https://github.com/mtrojnar/pi-usage) in
 
 ## Local development
 
-Requires Node.js >=22.19.0. Tests currently use Pi 1.0.3 and mock provider requests.
+Requires Node.js >=22.19.0. Local dependencies pin Pi 1.0.3; compatibility CI tests Pi 1.0.3 and 1.1.0 on Node.js 22.19.0. Provider requests are mocked. These are tested versions, not a guarantee for every intervening or future release.
 
 ```bash
 npm ci
@@ -98,6 +98,20 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 ```
 
 For a manual install, copy `extensions/*` into `~/.pi/agent/extensions/`.
+
+### Plugin integration
+
+Use Pi's standard status API to contribute text without replacing the footer:
+
+```typescript
+ctx.ui.setStatus("my-extension", "Working");
+ctx.ui.setStatus("my-extension", "Ready"); // update the same entry
+ctx.ui.setStatus("my-extension", undefined); // remove it
+```
+
+Use a unique key. Pi requests a redraw when statuses change; no footer-specific event is needed. `showSkills` controls status visibility. Narrow terminals may truncate or omit entries to preserve model/context and usage information.
+
+Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` replaces this footer. Usage requests and footer-owned timers stop on disposal.
 
 ### Code map
 

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Keep the README user-focused; move compatibility and plugin API details to the developer guide
 - Pulse the whole Git section bold for one second when divergence changes, replacing the two-user-submission count highlight; preserve unsynced/synced foreground colors and cancel the pulse on disposal
 
 ### Added
