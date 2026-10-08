@@ -103,6 +103,19 @@ async function installExtension() {
 async function start(runtime, ctx, reason = 'startup') { await runtime.handlers.get('session_start')?.[0]?.({ reason }, ctx); }
 async function emit(runtime, name, ctx, event = {}) { await runtime.handlers.get(name)?.[0]?.(event, ctx); }
 
+test('normalizes timer-bound settings when enabling the footer', async () => {
+  for (const [value, expectedRefresh, expectedTimeout] of [[2147484, 91, 17], [2147483, 2147483, 2147483], [1, 1, 1]]) {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: {
+      enabled: false, gitRefreshSeconds: value, gitFetchTimeoutSeconds: value,
+    }}));
+    const runtime = await installExtension();
+    await runtime.commands.get('minfooter').handler('on', makeContext({ mode: 'print', hasUI: false }).ctx);
+    const settings = JSON.parse(await readFile(join(agentDir, 'settings.json'), 'utf8'));
+    assert.equal(settings.minFooter.gitRefreshSeconds, expectedRefresh);
+    assert.equal(settings.minFooter.gitFetchTimeoutSeconds, expectedTimeout);
+  }
+});
+
 // A fresh extension instance per test prevents global module state from leaking between cases.
 test.beforeEach(async () => {
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, showGitBranch: true, showSkills: true, showPath: true, showModel: true, showContext: true } }));

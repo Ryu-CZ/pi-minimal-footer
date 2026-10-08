@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject Git refresh and fetch timeout settings above Node's maximum timer delay, preserving the 91- and 17-second fallbacks
+
 ### Changed
 
 - Pulse the whole Git section bold for one second when divergence changes, replacing the two-user-submission count highlight; preserve unsynced/synced foreground colors and cancel the pulse on disposal

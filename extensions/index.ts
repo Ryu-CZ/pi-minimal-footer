@@ -42,6 +42,8 @@ interface Settings {
 type FooterSettings = NonNullable<Settings["minFooter"]>;
 
 const execFileAsync = promisify(execFile);
+// Node clamps timer delays above this signed 32-bit millisecond limit to 1ms.
+const MAX_TIMER_SECONDS = Math.floor(2_147_483_647 / 1000);
 
 const DEFAULT_SETTINGS: FooterSettings = {
   enabled: true,
@@ -87,10 +89,10 @@ function writeSettings(patch: Partial<Settings>): void {
 function readConfig(): FooterSettings {
   const s = readSettings();
   const config = { ...DEFAULT_SETTINGS, ...s.minFooter };
-  if (typeof config.gitRefreshSeconds !== "number" || !Number.isSafeInteger(config.gitRefreshSeconds) || config.gitRefreshSeconds < 1) {
+  if (typeof config.gitRefreshSeconds !== "number" || !Number.isSafeInteger(config.gitRefreshSeconds) || config.gitRefreshSeconds < 1 || config.gitRefreshSeconds > MAX_TIMER_SECONDS) {
     config.gitRefreshSeconds = 91;
   }
-  if (typeof config.gitFetchTimeoutSeconds !== "number" || !Number.isSafeInteger(config.gitFetchTimeoutSeconds) || config.gitFetchTimeoutSeconds < 1) {
+  if (typeof config.gitFetchTimeoutSeconds !== "number" || !Number.isSafeInteger(config.gitFetchTimeoutSeconds) || config.gitFetchTimeoutSeconds < 1 || config.gitFetchTimeoutSeconds > MAX_TIMER_SECONDS) {
     config.gitFetchTimeoutSeconds = 17;
   }
   if (typeof config.maxUsageBarCells !== "number" || !Number.isSafeInteger(config.maxUsageBarCells) || config.maxUsageBarCells < 1) {
