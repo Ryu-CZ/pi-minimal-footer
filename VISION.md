@@ -38,11 +38,12 @@ The bar and reset label have no intervening space. Reset formatting uses local c
 
 ## Git contract
 
-- Pi supplies the branch name. Query `git rev-list --left-right --count HEAD...@{upstream}` for `↑N` local-only and `↓N` upstream-only commits. Use local refs; never fetch automatically.
+- Pi supplies the branch name. Query `git rev-list --left-right --count HEAD...@{upstream}` for `↑N` local-only and `↓N` upstream-only commits. Use local refs; no remote fetch by default.
 - Query outside rendering with a one-second timeout so Git cannot block the TUI. Missing upstreams and command failures omit counts.
-- Refresh on branch-change signals and footer state updates, plus every 91 seconds while the footer is active so external commits are noticed even when Pi is idle. `minFooter.gitRefreshSeconds` accepts positive integer seconds; invalid values fall back to 91. Local-only queries permit a shorter interval than subscription usage polling without network traffic. Stop the timer on footer disposal. Ignore older query results to prevent stale counts from restarting highlights.
-- Use the theme's normal text foreground while unsynced, otherwise dim. A count change bolds the arrows/counts until two subsequent user submissions; further changes restart the window. Tool turns and extension prompts do not consume it.
+- Refresh on branch-change signals and footer state updates, plus every 91 seconds while the footer is active so external commits are noticed even when Pi is idle. `minFooter.gitRefreshSeconds` accepts integer seconds from 1 through 2,147,483 (Node's maximum timer delay); invalid values fall back to 91. Local-only queries permit a shorter interval than subscription usage polling without network traffic. Stop the timer on footer disposal. Ignore older query results to prevent stale counts from restarting highlights.
+- Use the theme's normal text foreground while unsynced, otherwise dim. A count change pulses the whole Git section (icon, branch, and counts) bold for one second to call attention without persistent emphasis or turn-count bookkeeping; this is independent of synced/unsynced foreground color. Further changes restart the timer. Expiry requests a redraw even while idle. User submissions and tool turns do not affect the pulse. Dispose cancels the timer.
 - Initial loading and working-directory changes establish an unhighlighted baseline. Zero counts hide the arrows entirely.
+- `minFooter.gitFetch` (default `false`) opts into asynchronous `git fetch --quiet` on footer startup and every five minutes with ±⅛ jitter (262.5–337.5 seconds), sampled after each completed attempt. Jitter spreads network load across sessions; local divergence polling remains independent. Disable interactive credential prompts; failures are silent and retry at the next interval. `gitFetchTimeoutSeconds` accepts integer seconds from 1 through 2,147,483 (Node's maximum timer delay), default/fallback 17. Successful fetches refresh divergence. Footer disposal clears the timer and aborts an in-flight fetch; only interactive sessions with an active footer fetch.
 
 ## Subscription usage contract
 
@@ -79,7 +80,7 @@ The comparison with [mtrojnar/pi-usage](https://github.com/mtrojnar/pi-usage) in
 
 ## Local development
 
-Requires Node.js >=22.19.0. Tests currently use Pi 1.0.3 and mock provider requests.
+Requires Node.js >=22.19.0. Local dependencies pin Pi 1.0.3; compatibility CI tests Pi 1.0.3 and 1.1.0 on Node.js 22.19.0. Provider requests are mocked. These are tested versions, not a guarantee for every intervening or future release.
 
 ```bash
 npm ci
@@ -98,9 +99,23 @@ ln -s "$PWD/extensions" ~/.pi/agent/extensions/minimal-footer
 
 For a manual install, copy `extensions/*` into `~/.pi/agent/extensions/`.
 
+### Plugin integration
+
+Use Pi's standard status API to contribute text without replacing the footer:
+
+```typescript
+ctx.ui.setStatus("my-extension", "Working");
+ctx.ui.setStatus("my-extension", "Ready"); // update the same entry
+ctx.ui.setStatus("my-extension", undefined); // remove it
+```
+
+Use a unique key. Pi requests a redraw when statuses change; no footer-specific event is needed. `showSkills` controls status visibility. Narrow terminals may truncate or omit entries to preserve model/context and usage information.
+
+Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` replaces this footer. Usage requests, new Git queries, and footer-owned timers stop on disposal; an in-flight Git query may complete, but lifecycle state refreshes alone never start one.
+
 ### Code map
 
-- `extensions/index.ts`: settings, state refresh, layout, footer lifecycle, and `/minfooter`.
+- `extensions/index.ts`: settings, plain state updates, active-footer refresh gate, layout, footer lifecycle, and `/minfooter`.
 - `extensions/lib/usage-limits.ts`: usage refresh, cache, cancellation, and bar/reset rendering.
 - `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and response normalization.
 - `tests/`: lifecycle/layout regressions, Git highlighting with a temporary repository, and usage parsing tests.

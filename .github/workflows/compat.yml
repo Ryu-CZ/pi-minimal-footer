@@ -1,0 +1,42 @@
+name: Pi compatibility
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pi: ["1.0.3", "1.1.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          cache: npm
+      - run: npm ci
+      - name: Install matching Pi packages
+        run: >-
+          npm install --no-save --package-lock=false
+          @earendil-works/pi-coding-agent@${{ matrix.pi }}
+          @earendil-works/pi-tui@${{ matrix.pi }}
+          @earendil-works/pi-ai@${{ matrix.pi }}
+          @earendil-works/pi-agent-core@${{ matrix.pi }}
+      - name: Verify resolved versions
+        env:
+          EXPECTED_PI: ${{ matrix.pi }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          for (const name of ["pi-coding-agent", "pi-tui", "pi-ai", "pi-agent-core"]) {
+            const { version } = JSON.parse(readFileSync(`node_modules/@earendil-works/${name}/package.json`, "utf8"));
+            console.log(`${name}: ${version}`);
+            assert.equal(version, process.env.EXPECTED_PI);
+          }
+          JS
+      - run: npm test
+      - run: npm run check

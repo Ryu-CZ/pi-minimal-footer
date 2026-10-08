@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-08
+
+### Fixed
+
+- Run Git queries only while the extension owns a live TUI footer; explicit enable resumes querying
+- Reject Git refresh and fetch timeout settings above Node's maximum timer delay, preserving the 91- and 17-second fallbacks
+- Replace fixed sleeps in Git fetch jitter tests with bounded waits for child completion and retry scheduling
+
+### Changed
+
+- Keep the README user-focused; move compatibility and plugin API details to the developer guide
+- Document the rationale for brief Git pulses and live-footer refresh ownership
+- Pulse the whole Git section bold for one second when divergence changes, replacing the two-user-submission count highlight; preserve unsynced/synced foreground colors and cancel the pulse on disposal
+
+### Added
+
+- Opt-in `minFooter.gitFetch` background fetch on footer startup and every five minutes with ±⅛ jitter; silent failures, no interactive credential prompts, configurable `gitFetchTimeoutSeconds` (default 17), and cancellation on footer disposal
+
 ## [0.5.3] - 2026-10-07
 
 ### Changed
@@ -216,7 +234,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.0...v0.5.1
