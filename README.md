@@ -95,6 +95,20 @@ Counts require a configured upstream. Unsynced branches use the theme's normal f
 
 Implemented adapters: **OpenAI Codex, Claude OAuth, GitHub Copilot, Gemini CLI, MiniMax, Kimi Coding, and OpenCode Go**. Uses Pi's existing credentials; ordinary Claude API keys do not expose subscription usage. Authenticated endpoints remain unverified live; see [verification limits](VISION.md).
 
+### Extension statuses
+
+Other extensions contribute text through Pi's standard status API:
+
+```typescript
+ctx.ui.setStatus("my-extension", "Working");
+ctx.ui.setStatus("my-extension", "Ready"); // update the same entry
+ctx.ui.setStatus("my-extension", undefined); // remove it
+```
+
+Use a unique key for your extension. Pi requests a redraw when statuses change; no footer-specific hooks are needed. `showSkills: false` hides these entries, and narrow terminals may truncate or omit them to preserve model/context and usage information.
+
+Only one extension can own Pi's footer. Another extension calling `ctx.ui.setFooter()` replaces this footer; use `setStatus()` to contribute text without replacing it.
+
 ## Development & design
 
 Install from source:
@@ -102,6 +116,8 @@ Install from source:
 ```bash
 pi install git:github.com/Ryu-CZ/pi-minimal-footer
 ```
+
+Compatibility CI runs tests and TypeScript checks against pinned Pi versions **1.0.3 and 1.1.0**, on Node.js **22.19.0**. These are tested versions, not a guarantee for every intervening or future release.
 
 See [VISION.md](VISION.md) for design constraints, local development, provider details, and verification limits. Release history: [CHANGELOG.md](CHANGELOG.md).
 
