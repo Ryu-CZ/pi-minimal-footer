@@ -1,5 +1,7 @@
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
+import util from 'node:util';
+import { syncBuiltinESMExports } from 'node:module';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -177,6 +179,53 @@ for (const [random, interval] of [[0, 262500], [0.5, 300000], [1, 337500]]) {
   });
 }
 
+test('Git queries follow live footer ownership and resume on explicit enable', async (t) => {
+  let queries = 0;
+  const realPromisify = util.promisify;
+  const mockPromisify = t.mock.method(util, 'promisify', (fn) => {
+    const original = realPromisify(fn);
+    if (fn.name !== 'execFile') return original;
+    return async (...args) => {
+      if (args[0] !== 'git') return original(...args);
+      queries++;
+      return { stdout: '0 0', stderr: '' };
+    };
+  });
+  syncBuiltinESMExports();
+  t.after(() => { mockPromisify.mock.restore(); syncBuiltinESMExports(); });
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx);
+  await settle();
+  assert.equal(queries, 1, 'startup initializes Git once');
+  await runtime.commands.get('minfooter').handler('off', ctx);
+  const hiddenQueries = queries;
+  await emit(runtime, 'turn_end', ctx);
+  await start(runtime, ctx);
+  await settle();
+  assert.equal(queries, hiddenQueries, 'disabled footer does not query');
+  await runtime.commands.get('minfooter').handler('on', ctx);
+  await settle();
+  assert.equal(queries, hiddenQueries + 1, 'explicit enable resumes queries');
+  ctx.ui.setFooter(undefined);
+  await emit(runtime, 'model_select', ctx);
+  await emit(runtime, 'input', ctx, { source: 'interactive' });
+  await settle();
+  assert.equal(queries, hiddenQueries + 1, 'replaced footer does not query');
+  for (const mode of ['rpc', 'print', 'json']) {
+    const other = await installExtension();
+    const fixture = makeContext({ mode });
+    await start(other, fixture.ctx);
+    await emit(other, 'turn_end', fixture.ctx);
+    await other.commands.get('minfooter').handler('on', fixture.ctx);
+    await settle();
+    assert.equal(queries, hiddenQueries + 1, `${mode} does not query`);
+    await emit(other, 'session_shutdown', fixture.ctx);
+  }
+  assert.equal(ui.component, undefined);
+});
+
 test('each real loader call creates isolated lifecycle handlers without message_end', async () => {
   const ext = await installExtension();
   const next = await installExtension();
@@ -250,6 +299,7 @@ test('disposing an old renderer cannot clear a newer renderer; both subscription
   const { ctx, ui } = makeContext({ footerProvider: oldProvider, tui: { requestRender: () => oldRenders++ } });
   await start(runtime, ctx);
   const oldComponent = ui.component;
+  oldRenders = 0;
   const currentComponent = ui.factory({ requestRender: () => newRenders++ }, theme, newProvider);
   oldComponent.dispose(); oldComponent.dispose();
   await emit(runtime, 'model_select', ctx);

@@ -111,7 +111,7 @@ ctx.ui.setStatus("my-extension", undefined); // remove it
 
 Use a unique key. Pi requests a redraw when statuses change; no footer-specific event is needed. `showSkills` controls status visibility. Narrow terminals may truncate or omit entries to preserve model/context and usage information.
 
-Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` replaces this footer. Usage requests and footer-owned timers stop on disposal.
+Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` replaces this footer. Usage requests, new Git queries, and footer-owned timers stop on disposal; an in-flight Git query may complete, but lifecycle state refreshes alone never start one.
 
 ### Code map
 

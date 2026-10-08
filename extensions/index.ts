@@ -410,18 +410,24 @@ export default function (pi: ExtensionAPI) {
   }
 
   /** Cheap refresh: update plain state and request one render. */
-  function refresh(ctx: ExtensionContext): void {
-    updateState(ctx, state);
+  function refreshFooter(): void {
+    if (disposeFooter === null) return;
     void refreshGit().then(() => requestRender?.());
     requestRender?.();
+  }
+
+  function refresh(ctx: ExtensionContext): void {
+    updateState(ctx, state);
+    refreshFooter();
   }
 
   // ── Lifecycle events (passive; no footer re-install) ────────────────
 
   pi.on("session_start", async (_event, ctx) => {
     usageLimits.stop();
-    refresh(ctx);
+    updateState(ctx, state);
     install(ctx);
+    refreshFooter();
   });
 
   pi.on("input", (_event, ctx) => {
@@ -471,8 +477,9 @@ export default function (pi: ExtensionAPI) {
       else if (args === "off") enabled = false;
       else enabled = !enabled;
       writeEnabled(enabled);
-      refresh(ctx);
+      updateState(ctx, state);
       install(ctx);
+      refreshFooter();
       ctx.ui.notify(`Minimal footer ${enabled ? "enabled" : "disabled"}`, "info");
     },
   });
