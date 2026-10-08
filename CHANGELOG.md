@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-08
+
 ### Fixed
 
 - Run Git queries only while the extension owns a live TUI footer; explicit enable resumes querying
@@ -232,7 +234,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.0...v0.5.1
