@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Reject Git refresh and fetch timeout settings above Node's maximum timer delay, preserving the 91- and 17-second fallbacks
+- Replace fixed sleeps in Git fetch jitter tests with bounded waits for child completion and retry scheduling
 
 ### Changed
 

@@ -122,6 +122,16 @@ test.beforeEach(async () => {
 });
 test.after(async () => { await rm(agentDir, { recursive: true, force: true }); await rm(homeDir, { recursive: true, force: true }); });
 
+async function waitForFetchState(log, expectedCalls, retryCount, getRetryCount) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    const calls = await readFile(log, 'utf8').catch(() => '');
+    if (calls === expectedCalls && getRetryCount() >= retryCount) return;
+    await delay(10);
+  }
+  assert.fail(`timed out waiting for fetch state ${JSON.stringify(expectedCalls)} and ${retryCount} retries`);
+}
+
 for (const [random, interval] of [[0, 262500], [0.5, 300000], [1, 337500]]) {
   test(`opt-in Git fetch starts immediately, retries silent failures after ${interval}ms, and stops on disposal`, async (t) => {
     const bin = await mkdtemp(join(tmpdir(), 'footer-fetch-'));
@@ -133,25 +143,36 @@ for (const [random, interval] of [[0, 262500], [0.5, 300000], [1, 337500]]) {
     t.after(async () => { process.env.PATH = oldPath; await rm(bin, { recursive: true, force: true }); });
     t.mock.method(Math, 'random', () => random);
     t.mock.timers.enable({ apis: ['setTimeout'] });
+    let scheduledRetries = 0;
+    let firedRetries = 0;
+    const fakeSetTimeout = globalThis.setTimeout;
+    t.mock.method(globalThis, 'setTimeout', function (callback, milliseconds, ...args) {
+      if (milliseconds === interval) {
+        scheduledRetries++;
+        return fakeSetTimeout.call(this, (...callbackArgs) => {
+          firedRetries++;
+          callback(...callbackArgs);
+        }, milliseconds, ...args);
+      }
+      return fakeSetTimeout.call(this, callback, milliseconds, ...args);
+    });
     const runtime = await installExtension();
     const { ctx, ui } = makeContext();
     t.after(() => ui.component?.dispose());
     await start(runtime, ctx);
-    await delay(50);
+    await settle();
     assert.equal(await readFile(log, 'utf8').catch(() => ''), '', 'disabled by default');
     await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { gitFetch: true, gitFetchTimeoutSeconds: 'invalid' } }));
     await runtime.commands.get('minfooter').handler('on', ctx);
-    await delay(50);
-    assert.equal(await readFile(log, 'utf8'), 'fetch\n');
+    await waitForFetchState(log, 'fetch\n', 1, () => scheduledRetries);
     t.mock.timers.tick(interval - 1);
-    await delay(50);
-    assert.equal(await readFile(log, 'utf8'), 'fetch\n');
+    assert.equal(firedRetries, 0, 'retry does not fire before the jitter boundary');
     t.mock.timers.tick(1);
-    await delay(50);
-    assert.equal(await readFile(log, 'utf8'), 'fetch\nfetch\n');
+    assert.equal(firedRetries, 1);
+    await waitForFetchState(log, 'fetch\nfetch\n', 2, () => scheduledRetries);
     ui.component.dispose();
     t.mock.timers.tick(interval * 2);
-    await delay(50);
+    assert.equal(firedRetries, 1, 'disposal cancels the scheduled retry');
     assert.equal(await readFile(log, 'utf8'), 'fetch\nfetch\n');
   });
 }
