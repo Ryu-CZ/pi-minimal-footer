@@ -1303,7 +1303,10 @@ test('Kimi accepts the actual Pi OAuth bearer-header contract', async (t) => {
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
 });
 
-test('Git changes highlight counts for two user inputs, not tool turns, and restart on changes', async () => {
+test('Git changes pulse the whole section for one second, restart on changes, and preserve colors', async (t) => {
+  const realSetTimeout = setTimeout;
+  const realClearTimeout = clearTimeout;
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const cwd = await mkdtemp(join(tmpdir(), 'footer-git-'));
   const git = (...args) => execFileSync('git', ['-C', cwd, ...args], { stdio: 'pipe' });
   let pending;
@@ -1312,10 +1315,10 @@ test('Git changes highlight counts for two user inputs, not tool turns, and rest
   const runtime = await installExtension();
   const waitFor = async (action, predicate) => {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { pending = undefined; reject(new Error('Git refresh timed out')); }, 2000);
+      const timer = realSetTimeout(() => { pending = undefined; reject(new Error('Git refresh timed out')); }, 2000);
       pending = () => {
         if (ui.component && predicate(ui.component.render(160)[0])) {
-          clearTimeout(timer); pending = undefined; resolve();
+          realClearTimeout(timer); pending = undefined; resolve();
         }
       };
       void action().catch(reject);
@@ -1330,25 +1333,43 @@ test('Git changes highlight counts for two user inputs, not tool turns, and rest
     git('branch', '--set-upstream-to=upstream');
     git('commit', '--allow-empty', '-m', 'one');
     await waitFor(() => start(runtime, ctx), (s) => s.includes(' ↑1'));
-    assert.doesNotMatch(ui.component.render(160)[0], /<bold> ↑1/);
+    assert.doesNotMatch(ui.component.render(160)[0], /<bold>/);
     assert.match(ui.component.render(160)[0], /<text> main ↑1<\/text>/);
     git('commit', '--allow-empty', '-m', 'two');
-    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> ↑2</bold>'));
+    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> main ↑2</bold>'));
     await emit(runtime, 'turn_end', ctx);
     await emit(runtime, 'input', ctx, { source: 'extension' });
     await emit(runtime, 'input', ctx, { source: 'interactive' });
-    assert.match(ui.component.render(160)[0], /<bold> ↑2<\/bold>/);
+    await emit(runtime, 'input', ctx, { source: 'interactive' });
+    t.mock.timers.tick(999);
+    assert.match(ui.component.render(160)[0], /<text><bold> main ↑2<\/bold><\/text>/);
     git('commit', '--allow-empty', '-m', 'three');
-    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> ↑3</bold>'));
-    await emit(runtime, 'input', ctx, { source: 'interactive' });
-    assert.match(ui.component.render(160)[0], /<bold> ↑3<\/bold>/);
-    await emit(runtime, 'input', ctx, { source: 'interactive' });
-    assert.doesNotMatch(ui.component.render(160)[0], /<bold> ↑3/);
+    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> main ↑3</bold>'));
+    t.mock.timers.tick(1);
+    assert.match(ui.component.render(160)[0], /<bold> main ↑3<\/bold>/);
+    t.mock.timers.tick(998);
+    assert.match(ui.component.render(160)[0], /<bold> main ↑3<\/bold>/);
+    let expiryRenders = 0;
+    pending = () => expiryRenders++;
+    t.mock.timers.tick(1);
+    pending = undefined;
+    assert.equal(expiryRenders, 1, 'expiry redraws even when Pi is idle');
     assert.match(ui.component.render(160)[0], /<text> main ↑3<\/text>/);
-    // Simulate upstream catching up after a push: no divergence, no emphasis.
+    // Upstream catching up pulses the whole section, but remains dim rather than white.
     git('branch', '-f', 'upstream', 'HEAD');
-    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => !s.includes('↑3'));
-    assert.doesNotMatch(ui.component.render(160)[0], /<text>/);
+    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> main</bold>'));
+    assert.doesNotMatch(ui.component.render(160)[0], /<text>/);
+    t.mock.timers.tick(1000);
+    assert.doesNotMatch(ui.component.render(160)[0], /<bold>/);
+    git('commit', '--allow-empty', '-m', 'four');
+    await waitFor(() => emit(runtime, 'agent_settled', ctx), (s) => s.includes('<bold> main ↑1</bold>'));
+    await emit(runtime, 'session_shutdown', ctx);
+    let afterDisposalRenders = 0;
+    pending = () => afterDisposalRenders++;
+    t.mock.timers.tick(1000);
+    pending = undefined;
+    assert.equal(afterDisposalRenders, 0, 'disposal cancels the pulse timer');
+    assert.doesNotMatch(ui.component.render(160)[0], /<bold>/);
   } finally {
     await emit(runtime, 'session_shutdown', ctx);
     await rm(cwd, { recursive: true, force: true });

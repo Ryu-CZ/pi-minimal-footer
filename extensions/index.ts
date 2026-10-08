@@ -129,7 +129,7 @@ interface FooterState {
   context: string;
   gitSync: string;
   gitInitialized: boolean;
-  gitHighlightInputs: number;
+  gitHighlighted: boolean;
   gitRequest: number;
 }
 
@@ -152,15 +152,16 @@ async function getGitSync(cwd: string): Promise<string> {
   }
 }
 
-async function updateGitSync(state: FooterState): Promise<void> {
+async function updateGitSync(state: FooterState): Promise<boolean> {
   const cwd = state.cwd;
   const request = ++state.gitRequest;
   const gitSync = await getGitSync(cwd);
   // Refresh events can overlap; an older result must not restart the highlight.
-  if (state.cwd !== cwd || request !== state.gitRequest) return;
-  if (state.gitInitialized && state.gitSync !== gitSync) state.gitHighlightInputs = 2;
+  if (state.cwd !== cwd || request !== state.gitRequest) return false;
+  const changed = state.gitInitialized && state.gitSync !== gitSync;
   state.gitSync = gitSync;
   state.gitInitialized = true;
+  return changed;
 }
 
 function updateState(ctx: ExtensionContext, state: FooterState): void {
@@ -168,7 +169,7 @@ function updateState(ctx: ExtensionContext, state: FooterState): void {
   if (state.cwd !== cwd) {
     state.gitSync = "";
     state.gitInitialized = false;
-    state.gitHighlightInputs = 0;
+    state.gitHighlighted = false;
   }
   state.cwd = cwd;
   state.model = ctx.model?.id ?? "no-model";
@@ -261,11 +262,24 @@ export default function (pi: ExtensionAPI) {
   let enabled = config.enabled !== false;
   const state: FooterState = {
     cwd: process.cwd(), model: "no-model", context: "?", gitSync: "",
-    gitInitialized: false, gitHighlightInputs: 0, gitRequest: 0,
+    gitInitialized: false, gitHighlighted: false, gitRequest: 0,
   };
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
   const usageLimits = new UsageLimits(() => requestRender?.());
+  let gitPulseTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function refreshGit(): Promise<void> {
+    if (!await updateGitSync(state) || disposeFooter === null) return;
+    if (gitPulseTimer) clearTimeout(gitPulseTimer);
+    state.gitHighlighted = true;
+    gitPulseTimer = setTimeout(() => {
+      gitPulseTimer = null;
+      state.gitHighlighted = false;
+      requestRender?.();
+    }, 1000);
+    gitPulseTimer.unref?.();
+  }
 
   function selectUsage(ctx: ExtensionContext): void {
     // The preference may remain enabled after another extension replaces our footer.
@@ -288,7 +302,7 @@ export default function (pi: ExtensionAPI) {
       // Branch changes are Pi's invalidation signal; refresh the async Git
       // divergence separately because footer rendering must remain synchronous.
       const unsub = footerData.onBranchChange(() => {
-        void updateGitSync(state).then(() => tui.requestRender());
+        void refreshGit().then(() => tui.requestRender());
         tui.requestRender();
       });
       const request = () => tui.requestRender();
@@ -302,7 +316,7 @@ export default function (pi: ExtensionAPI) {
         if (disposed) return;
         gitTimer = setTimeout(() => {
           gitTimer = null;
-          void updateGitSync(state).then(() => tui.requestRender()).finally(scheduleGitRefresh);
+          void refreshGit().then(() => tui.requestRender()).finally(scheduleGitRefresh);
         }, gitRefreshMs);
         // Do not keep a non-interactive process alive solely for footer refresh.
         gitTimer.unref?.();
@@ -324,7 +338,7 @@ export default function (pi: ExtensionAPI) {
             env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
           });
           if (!disposed && state.cwd === cwd) {
-            await updateGitSync(state);
+            await refreshGit();
             if (!disposed) tui.requestRender();
           }
         } catch {
@@ -354,6 +368,9 @@ export default function (pi: ExtensionAPI) {
         if (requestRender === request) {
           requestRender = null;
           usageLimits.stop();
+          if (gitPulseTimer) clearTimeout(gitPulseTimer);
+          gitPulseTimer = null;
+          state.gitHighlighted = false;
         }
         if (disposeFooter === dispose) disposeFooter = null;
       };
@@ -365,15 +382,15 @@ export default function (pi: ExtensionAPI) {
             ? [...footerData.getExtensionStatuses().values()].filter((s) => s.trim())
             : [];
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
-          const syncText = state.gitHighlightInputs > 0 ? theme.bold(state.gitSync) : state.gitSync;
-          const branchText = branch ? `${branch}${syncText}` : "";
+          const branchText = branch ? ` ${branch}${state.gitSync}` : "";
+          const gitText = state.gitHighlighted ? theme.bold(branchText) : branchText;
           const statusSeparator = config.powerlineSeparator ? theme.fg("dim", "  ") : " ";
           const line = buildLine(
             width,
             config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
             statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
-            // Keep unsynced branches readable; bold counts separately mark recent changes.
-            branchText ? theme.fg(state.gitSync ? "text" : "dim", ` ${branchText}`) : "",
+            // Pulse weight independently of the existing divergence color.
+            branchText ? theme.fg(state.gitSync ? "text" : "dim", gitText) : "",
             config.showModel ? theme.bold(state.model) : "",
             config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
             (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
@@ -393,7 +410,7 @@ export default function (pi: ExtensionAPI) {
   /** Cheap refresh: update plain state and request one render. */
   function refresh(ctx: ExtensionContext): void {
     updateState(ctx, state);
-    void updateGitSync(state).then(() => requestRender?.());
+    void refreshGit().then(() => requestRender?.());
     requestRender?.();
   }
 
@@ -405,10 +422,7 @@ export default function (pi: ExtensionAPI) {
     install(ctx);
   });
 
-  // Count user submissions, not turn_end: one prompt can trigger many tool turns.
-  // Extension-generated prompts do not consume the user's highlight window.
-  pi.on("input", (event, ctx) => {
-    if (event.source !== "extension" && state.gitHighlightInputs > 0) state.gitHighlightInputs--;
+  pi.on("input", (_event, ctx) => {
     refresh(ctx);
   });
 

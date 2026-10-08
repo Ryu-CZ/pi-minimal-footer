@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Pulse the whole Git section bold for one second when divergence changes, replacing the two-user-submission count highlight; preserve unsynced/synced foreground colors and cancel the pulse on disposal
+
 ### Added
 
 - Opt-in `minFooter.gitFetch` background fetch on footer startup and every five minutes with ±⅛ jitter; silent failures, no interactive credential prompts, configurable `gitFetchTimeoutSeconds` (default 17), and cancellation on footer disposal

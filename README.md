@@ -81,7 +81,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 
 ### Git
 
-Counts require a configured upstream. Unsynced branches use the theme's normal foreground; synced branches are dim. Changed counts stay bold until two subsequent user messages; further changes restart the highlight.
+Counts require a configured upstream. Unsynced branches use the theme's normal foreground; synced branches are dim. Count changes pulse the whole Git section bold for one second, then return to normal weight. Further changes restart the pulse; user messages and tool turns do not affect its duration.
 
 ### Context
 
