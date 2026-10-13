@@ -113,6 +113,21 @@ Use a unique key. Pi requests a redraw when statuses change; no footer-specific 
 
 Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` replaces this footer. Usage requests, new Git queries, and footer-owned timers stop on disposal; an in-flight Git query may complete, but lifecycle state refreshes alone never start one.
 
+#### Session-only footer control
+
+Extensions can temporarily override footer visibility without changing the user's saved setting:
+
+```typescript
+pi.events.emit("pi-minimal-footer:set-enabled", { enabled: false });
+pi.events.emit("pi-minimal-footer:set-enabled", { enabled: true });
+```
+
+Emit after this extension's `session_start` handler has run; events before startup or after shutdown are ignored. The payload must contain a boolean `enabled`; invalid payloads are ignored. Changes are silent and do not write settings.
+
+The latest explicit action wins: `/minfooter on/off` changes the current footer and saves the preference, while this event changes only the current session. Normal refreshes never undo the choice. A new session or extension reload starts from the saved preference.
+
+Disabling restores Pi's default footer only if we still own the active footer; otherwise it leaves the active footer untouched. Enabling explicitly installs our footer and may replace another extension's footer; repeated enables while we own it do nothing. Neither action restores a previous extension's footer. A coordinating extension must choose the active footer—there is no priority stack or automatic reactivation.
+
 ### Code map
 
 - `extensions/index.ts`: settings, plain state updates, active-footer refresh gate, layout, footer lifecycle, and `/minfooter`.

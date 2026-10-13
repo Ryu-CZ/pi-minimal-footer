@@ -116,6 +116,22 @@ Provided by other extensions; hidden with `showSkills: false`. Narrow terminals 
 
 Only one footer extension can be active. For plugin integration, see [VISION.md](VISION.md#plugin-integration).
 
+## Programmatic control
+
+Other Pi extensions can enable or disable the footer for the current session without changing saved settings:
+
+```typescript
+pi.events.emit("pi-minimal-footer:set-enabled", { enabled: false }); // disable
+pi.events.emit("pi-minimal-footer:set-enabled", { enabled: true });  // enable
+```
+
+- Events work only while this extension's session is active.
+- The latest command or event wins.
+- `/minfooter on/off` saves your preference into config; events don't.
+- Enabling may replace another footer.
+- Disabling restores Pi's default footer if this footer is active; it leaves another extension's active footer untouched.
+- New sessions and `/reload` use your saved preference.
+
 ## Development & design
 
 Install from source:

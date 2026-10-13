@@ -17,6 +17,7 @@ const homeDir = await mkdtemp(join(tmpdir(), 'min-footer-home-'));
 process.env.PI_CODING_AGENT_DIR = agentDir;
 process.env.HOME = homeDir;
 const { loadExtensions } = await import(join(piRoot, 'core/extensions/loader.js'));
+const { createEventBus } = await import(join(piRoot, 'core/event-bus.js'));
 const { SessionManager } = await import(join(piRoot, 'core/session-manager.js'));
 const { getThemeByName } = await import(join(piRoot, 'modes/interactive/theme/theme.js'));
 const { visibleWidth } = await import(join(tuiRoot, 'index.js'));
@@ -95,8 +96,8 @@ function fakeUsageFetch(t, response = () => Response.json(usagePayload())) {
   return calls;
 }
 
-async function installExtension() {
-  const result = await loadExtensions([join(root, 'extensions')], root);
+async function installExtension(eventBus) {
+  const result = await loadExtensions([join(root, 'extensions')], root, eventBus);
   assert.deepEqual(result.errors, [], JSON.stringify(result.errors));
   assert.equal(result.extensions.length, 1);
   return result.extensions[0];
@@ -104,6 +105,110 @@ async function installExtension() {
 
 async function start(runtime, ctx, reason = 'startup') { await runtime.handlers.get('session_start')?.[0]?.({ reason }, ctx); }
 async function emit(runtime, name, ctx, event = {}) { await runtime.handlers.get(name)?.[0]?.(event, ctx); }
+
+test('session hook leaves settings unchanged, respects ownership, and manual commands win', async () => {
+  const settingsPath = join(agentDir, 'settings.json');
+  const saved = JSON.stringify({ minFooter: { enabled: true } });
+  await writeFile(settingsPath, saved);
+  const bus = createEventBus();
+  const runtime = await installExtension(bus);
+  const { ctx, ui } = makeContext();
+  const setEnabled = (enabled) => bus.emit('pi-minimal-footer:set-enabled', { enabled });
+  await start(runtime, ctx);
+  try {
+    const first = ui.component;
+    setEnabled(true);
+    assert.equal(ui.component, first);
+    for (const invalid of [null, {}, { enabled: 'false' }, false]) {
+      bus.emit('pi-minimal-footer:set-enabled', invalid);
+      assert.equal(ui.component, first);
+    }
+    setEnabled(false);
+    assert.equal(ui.component, undefined);
+    await emit(runtime, 'model_select', ctx);
+    assert.equal(ui.component, undefined);
+    assert.equal(await readFile(settingsPath, 'utf8'), saved);
+    await runtime.commands.get('minfooter').handler('on', ctx);
+    assert.ok(ui.component);
+    const replacement = { render: () => ['replacement'] };
+    ui.setFooter(() => replacement);
+    setEnabled(false);
+    assert.equal(ui.component, replacement);
+    setEnabled(true);
+    assert.notEqual(ui.component, replacement);
+    await runtime.commands.get('minfooter').handler('off', ctx);
+    assert.equal(ui.component, undefined);
+    setEnabled(true);
+    assert.ok(ui.component);
+    assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).minFooter.enabled, false);
+    await start(runtime, ctx, 'switch');
+    assert.equal(ui.component, undefined);
+  } finally {
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+  setEnabled(true);
+  assert.equal(ui.component, undefined);
+});
+
+test('session hook ignores events before startup', async () => {
+  const settingsPath = join(agentDir, 'settings.json');
+  const saved = await readFile(settingsPath, 'utf8');
+  const bus = createEventBus();
+  const runtime = await installExtension(bus);
+  const { ctx, ui } = makeContext();
+  bus.emit('pi-minimal-footer:set-enabled', { enabled: false });
+  assert.equal(ui.component, undefined);
+  assert.equal(await readFile(settingsPath, 'utf8'), saved);
+  try {
+    await start(runtime, ctx);
+    assert.ok(ui.component);
+  } finally {
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+});
+
+test('session hook does not install a footer in non-TUI modes', async (t) => {
+  for (const mode of ['print', 'json', 'rpc']) {
+    const settingsPath = join(agentDir, 'settings.json');
+    const saved = await readFile(settingsPath, 'utf8');
+    const bus = createEventBus();
+    const runtime = await installExtension(bus);
+    const { ctx, ui } = makeContext({ mode });
+    const setFooter = t.mock.method(ui, 'setFooter');
+    try {
+      await start(runtime, ctx);
+      bus.emit('pi-minimal-footer:set-enabled', { enabled: false });
+      bus.emit('pi-minimal-footer:set-enabled', { enabled: true });
+      assert.equal(setFooter.mock.callCount(), 0);
+      assert.equal(await readFile(settingsPath, 'utf8'), saved);
+    } finally {
+      await emit(runtime, 'session_shutdown', ctx);
+    }
+  }
+});
+
+test('session hook uses the new context after a session switch', async (t) => {
+  const bus = createEventBus();
+  const runtime = await installExtension(bus);
+  const first = makeContext();
+  const second = makeContext({ cwd: join(agentDir, 'other-project') });
+  await start(runtime, first.ctx);
+  bus.emit('pi-minimal-footer:set-enabled', { enabled: false });
+  await emit(runtime, 'session_shutdown', first.ctx);
+  const oldSetFooter = t.mock.method(first.ui, 'setFooter');
+  try {
+    await start(runtime, second.ctx, 'switch');
+    assert.ok(second.ui.component, 'new session restores the saved enabled preference');
+    bus.emit('pi-minimal-footer:set-enabled', { enabled: false });
+    assert.equal(second.ui.component, undefined);
+    bus.emit('pi-minimal-footer:set-enabled', { enabled: true });
+    assert.ok(second.ui.component);
+    assert.equal(oldSetFooter.mock.callCount(), 0);
+    assert.equal(first.ui.component, undefined);
+  } finally {
+    await emit(runtime, 'session_shutdown', second.ctx);
+  }
+});
 
 test('normalizes timer-bound settings when enabling the footer', async () => {
   for (const [value, expectedRefresh, expectedTimeout] of [[2147484, 91, 17], [2147483, 2147483, 2147483], [1, 1, 1]]) {

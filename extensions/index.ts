@@ -262,6 +262,7 @@ function buildLine(
 export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
+  let currentCtx: ExtensionContext | undefined;
   const state: FooterState = {
     cwd: process.cwd(), model: "no-model", context: "?", gitSync: "",
     gitInitialized: false, gitHighlighted: false, gitRequest: 0,
@@ -294,7 +295,6 @@ export default function (pi: ExtensionAPI) {
 
   function install(ctx: ExtensionContext): void {
     config = readConfig();
-    enabled = config.enabled !== false;
     if (ctx.mode !== "tui") { usageLimits.stop(); return; }
 
     if (!enabled) {
@@ -426,7 +426,19 @@ export default function (pi: ExtensionAPI) {
 
   // ── Lifecycle events (passive; no footer re-install) ────────────────
 
+  pi.events.on("pi-minimal-footer:set-enabled", (data) => {
+    if (!currentCtx || typeof data !== "object" || data === null ||
+        !("enabled" in data) || typeof data.enabled !== "boolean") return;
+    if (enabled === data.enabled && (!enabled || disposeFooter !== null)) return;
+    enabled = data.enabled;
+    updateState(currentCtx, state);
+    install(currentCtx);
+    refreshFooter();
+  });
+
   pi.on("session_start", async (_event, ctx) => {
+    currentCtx = ctx;
+    enabled = readConfig().enabled !== false;
     usageLimits.stop();
     updateState(ctx, state);
     install(ctx);
@@ -467,6 +479,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    currentCtx = undefined;
     usageLimits.stop();
     disposeFooter?.();
   });
