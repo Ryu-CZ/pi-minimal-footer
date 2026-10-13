@@ -73,6 +73,8 @@ function storedOAuth(provider: string): Record<string, unknown> {
 
 export async function usageRequest(ctx: ExtensionContext, model: NonNullable<ExtensionContext["model"]>): Promise<{ url: string; init: RequestInit } | null> {
   const provider = model.provider;
+  const url = ENDPOINTS[provider];
+  if (!url) return null;
   const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
   if (!auth.ok) {
     // Pi exposes missing credentials as a message, alongside transient OAuth errors.
@@ -110,7 +112,7 @@ export async function usageRequest(ctx: ExtensionContext, model: NonNullable<Ext
     init.body = "{}";
     headers["Content-Type"] = "application/json";
   }
-  return { url: ENDPOINTS[provider], init };
+  return { url, init };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -148,7 +150,7 @@ export function parseUsageWindows(provider: string, model: string, payload: unkn
       recognized = true;
       if (data.rate_limit !== null && !isObject(data.rate_limit)) malformed = true;
       const limits = record(data.rate_limit);
-      for (const [key, name] of [["primary", "primary_window"], ["secondary", "secondary_window"]]) {
+      for (const [key, name] of [["primary", "primary_window"], ["secondary", "secondary_window"]] as const) {
         add(key, limits[name], (w) => windowFrom(number(w.used_percent),
           Object.hasOwn(w, "limit_window_seconds") ? number(w.limit_window_seconds) ?? NaN : undefined,
           resetSeconds(w.reset_at) ?? relativeReset(w.reset_after_seconds)));

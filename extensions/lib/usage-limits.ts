@@ -197,7 +197,7 @@ export class UsageLimits {
     if (!this.ctx || this.request) return;
     const selected = this.selectedWindow();
     // Keep the sampled deadline when unrelated windows reschedule the timer.
-    let next = Math.max(this.attemptedAt, selected ? this.updatedAt[selected[0]] : 0) + this.refreshDelay;
+    let next = Math.max(this.attemptedAt, selected ? this.updatedAt[selected[0]] ?? 0 : 0) + this.refreshDelay;
     const resetAt = selected?.[1].resetAt;
     if (resetAt != null && resetAt > this.attemptedAt) next = Math.min(next, resetAt);
     this.timer = setTimeout(() => { this.timer = null; void this.poll(); }, Math.max(1, next - Date.now()));
