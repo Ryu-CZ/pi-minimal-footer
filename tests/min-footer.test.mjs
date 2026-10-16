@@ -629,6 +629,18 @@ test('extension statuses are individual power tabs without footer-added wrappers
   await emit(runtime, 'session_shutdown', ctx);
 });
 
+test('extension statuses normalize line breaks and tabs without losing ANSI styling', async () => {
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext({ footerProvider: provider(new Map([['a', '\u001b[32mfirst\nsecond\tthird\rfourth\u001b[0m']])) });
+  await start(runtime, ctx);
+  const lines = ui.component.render(180);
+  assert.equal(lines.length, 1);
+  assert.doesNotMatch(lines[0], /[\r\n\t]/);
+  assert.match(stripAnsi(lines[0]), /first second third fourth/);
+  assert.ok(lines[0].includes('\u001b[32m'));
+  await emit(runtime, 'session_shutdown', ctx);
+});
+
 test('compact model separators and optional plain-space status fallback', async () => {
   for (const powerlineSeparator of [true, false]) {
     await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { powerlineSeparator } }));
@@ -1429,6 +1441,9 @@ test('Anthropic response headers provide accurate small percentages without frac
 
 test('Copilot monthly usage uses GitHub login token, ignores unlimited buckets, and omits absent reset time', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+  const previousToken = process.env.COPILOT_GITHUB_TOKEN;
+  process.env.COPILOT_GITHUB_TOKEN = 'other-account-token';
+  t.after(() => { if (previousToken === undefined) delete process.env.COPILOT_GITHUB_TOKEN; else process.env.COPILOT_GITHUB_TOKEN = previousToken; });
   const authPath = join(agentDir, 'auth.json');
   await writeFile(authPath, JSON.stringify({ 'github-copilot': { type: 'oauth', refresh: 'github-login-token', access: 'inference-only-token', expires: Date.now() + 3600000 } }));
   t.after(() => rm(authPath, { force: true }));
@@ -1449,6 +1464,21 @@ test('Copilot monthly usage uses GitHub login token, ignores unlimited buckets, 
   data = { quota_snapshots: { premium_interactions: { percent_remaining: 65, unlimited: true } } };
   t.mock.timers.tick(240000); await settle();
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /[⠀⡀⣀⣄⣤⣦⣶⣷⣿]/);
+});
+
+test('Copilot quota uses the host-resolved API key ahead of ambient credentials', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+  const previousToken = process.env.COPILOT_GITHUB_TOKEN;
+  process.env.COPILOT_GITHUB_TOKEN = 'other-account-token';
+  t.after(() => { if (previousToken === undefined) delete process.env.COPILOT_GITHUB_TOKEN; else process.env.COPILOT_GITHUB_TOKEN = previousToken; });
+  const calls = fakeUsageFetch(t, () => Response.json({ quota_snapshots: { chat: { percent_remaining: 65 } } }));
+  const runtime = await installExtension();
+  const { ctx } = codexContext();
+  ctx.model = { id: 'gpt-model', provider: 'github-copilot', baseUrl: 'https://api.individual.githubcopilot.com' };
+  ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'saved-login-token' });
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx); await settle();
+  assert.equal(calls[0].init.headers.Authorization, 'token saved-login-token');
 });
 
 test('provider API errors and malformed numbers dim cached usage; custom origins are never queried', async (t) => {

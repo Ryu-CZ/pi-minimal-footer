@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Use the correct Copilot account credentials when displaying quota usage
+- Keep extension statuses on one footer line when they contain newlines or tabs
+
+### Changed
+
+- Add Pi 1.3.0 to compatibility checks
+
 ## [0.7.0] - 2026-10-13
 
 ### Fixed

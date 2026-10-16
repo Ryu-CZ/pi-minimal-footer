@@ -384,7 +384,7 @@ export default function (pi: ExtensionAPI) {
       return {
         render(width: number): string[] {
           const statuses = config.showSkills
-            ? [...footerData.getExtensionStatuses().values()].filter((s) => s.trim())
+            ? [...footerData.getExtensionStatuses().values()].map((s) => s.replace(/[\r\n\t]/g, " ")).filter((s) => s.trim())
             : [];
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
           const branchText = branch ? ` ${branch}${state.gitSync}` : "";

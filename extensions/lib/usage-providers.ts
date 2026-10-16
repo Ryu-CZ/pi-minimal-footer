@@ -98,7 +98,9 @@ export async function usageRequest(ctx: ExtensionContext, model: NonNullable<Ext
   } else if (provider === "github-copilot") {
     // Quota API needs the GitHub login token, not the exchanged inference token.
     const refresh = storedOAuth(provider).refresh;
-    token = auth.env?.COPILOT_GITHUB_TOKEN ?? process.env.COPILOT_GITHUB_TOKEN ?? (typeof refresh === "string" ? refresh : undefined);
+    if (ctx.modelRegistry.isUsingOAuth?.(model) ?? typeof refresh === "string") {
+      token = typeof refresh === "string" ? refresh : undefined;
+    }
     Object.assign(headers, { "Editor-Version": "vscode/1.96.2", "User-Agent": "GitHubCopilotChat/0.26.7", "X-Github-Api-Version": "2025-04-01" });
   } else if (provider === "google-gemini-cli" && token?.startsWith("{")) {
     const credentials = record(JSON.parse(token));
