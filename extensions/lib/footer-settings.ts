@@ -25,7 +25,7 @@ export type FooterSettings = NonNullable<Settings["minFooter"]>;
 // Node clamps timer delays above this signed 32-bit millisecond limit to 1ms.
 const MAX_TIMER_SECONDS = Math.floor(2_147_483_647 / 1000);
 
-const DEFAULT_SETTINGS: FooterSettings = {
+const DEFAULT_SETTINGS = {
   enabled: true,
   showGitBranch: true,
   showSkills: true,
@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS: FooterSettings = {
   gitFetch: false,
   gitFetchTimeoutSeconds: 17,
   maxUsageBarCells: MAX_BAR_CELLS,
-};
+} satisfies FooterSettings;
 
 function settingsPath(): string {
   return join(getAgentDir(), "settings.json");
@@ -67,17 +67,21 @@ function writeSettings(patch: Partial<Settings>): void {
   }
 }
 
+function isTimerSeconds(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= MAX_TIMER_SECONDS;
+}
+
 export function readConfig(): FooterSettings {
-  const s = readSettings();
-  const config = { ...DEFAULT_SETTINGS, ...s.minFooter };
-  if (typeof config.gitRefreshSeconds !== "number" || !Number.isSafeInteger(config.gitRefreshSeconds) || config.gitRefreshSeconds < 1 || config.gitRefreshSeconds > MAX_TIMER_SECONDS) {
-    config.gitRefreshSeconds = 91;
+  const settings = readSettings();
+  const config = { ...DEFAULT_SETTINGS, ...settings.minFooter };
+  if (!isTimerSeconds(config.gitRefreshSeconds)) {
+    config.gitRefreshSeconds = DEFAULT_SETTINGS.gitRefreshSeconds;
   }
-  if (typeof config.gitFetchTimeoutSeconds !== "number" || !Number.isSafeInteger(config.gitFetchTimeoutSeconds) || config.gitFetchTimeoutSeconds < 1 || config.gitFetchTimeoutSeconds > MAX_TIMER_SECONDS) {
-    config.gitFetchTimeoutSeconds = 17;
+  if (!isTimerSeconds(config.gitFetchTimeoutSeconds)) {
+    config.gitFetchTimeoutSeconds = DEFAULT_SETTINGS.gitFetchTimeoutSeconds;
   }
-  if (typeof config.maxUsageBarCells !== "number" || !Number.isSafeInteger(config.maxUsageBarCells) || config.maxUsageBarCells < 1) {
-    config.maxUsageBarCells = MAX_BAR_CELLS;
+  if (!Number.isSafeInteger(config.maxUsageBarCells) || config.maxUsageBarCells < 1) {
+    config.maxUsageBarCells = DEFAULT_SETTINGS.maxUsageBarCells;
   }
   return config;
 }

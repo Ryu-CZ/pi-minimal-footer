@@ -86,7 +86,6 @@ export default function (pi: ExtensionAPI) {
   }
 
   function install(ctx: ExtensionContext): void {
-    config = readConfig();
     updateState(ctx, state, config, git);
     if (ctx.mode !== "tui") { usageLimits.stop(); return; }
 
@@ -174,6 +173,7 @@ export default function (pi: ExtensionAPI) {
         !("enabled" in data) || typeof data.enabled !== "boolean") return;
     if (enabled === data.enabled && (!enabled || disposeFooter !== null)) return;
     enabled = data.enabled;
+    config = readConfig();
     install(currentCtx);
     refreshFooter();
   });
@@ -235,6 +235,7 @@ export default function (pi: ExtensionAPI) {
       else if (args === "off") enabled = false;
       else enabled = !enabled;
       writeEnabled(enabled);
+      config = readConfig();
       install(ctx);
       refreshFooter();
       ctx.ui.notify(`Minimal footer ${enabled ? "enabled" : "disabled"}`, "info");

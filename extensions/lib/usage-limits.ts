@@ -142,7 +142,10 @@ export class UsageLimits {
       return;
     }
     const selection = model.provider + (model.provider === "google-gemini-cli" ? ":" + model.id : "");
-    if (this.selection === selection) { this.ctx = ctx; return; }
+    if (this.selection === selection) {
+      this.ctx = ctx;
+      return;
+    }
     this.stop();
     this.ctx = ctx;
     this.provider = model.provider;
@@ -175,8 +178,8 @@ export class UsageLimits {
     if (!this.ctx || !Object.keys(windows).length) return;
     Object.assign(this.windows, windows);
     for (const key of Object.keys(windows)) this.updatedAt[key] = Date.now();
-    const selected = this.selectedWindow()!;
-    if (Object.hasOwn(windows, selected[0])) {
+    const [selectedKey] = this.selectedWindow()!;
+    if (Object.hasOwn(windows, selectedKey)) {
       // Only a response for the displayed window supersedes its background refresh.
       this.cancelRequest();
       this.stale = false;
@@ -221,9 +224,16 @@ export class UsageLimits {
       const request = await abortable(usageRequest(ctx, model), controller.signal);
       if (this.request !== controller) return;
       if (controller.signal.aborted) throw new Error("Usage authentication timed out");
-      if (!request) { this.windows = {}; this.updatedAt = {}; return; }
+      if (!request) {
+        this.windows = {};
+        this.updatedAt = {};
+        return;
+      }
       const response = await abortable(fetch(request.url, { ...request.init, signal: controller.signal, redirect: "error" }), controller.signal);
-      if (!response.ok) { await abortable(Promise.resolve(response.body?.cancel()), controller.signal); throw new Error("Usage unavailable"); }
+      if (!response.ok) {
+        await abortable(Promise.resolve(response.body?.cancel()), controller.signal);
+        throw new Error("Usage unavailable");
+      }
       const windows = parseUsageWindows(provider, modelId, await abortable(response.json(), controller.signal));
       if (this.request !== controller) return;
       if (controller.signal.aborted) throw new Error("Usage request timed out");

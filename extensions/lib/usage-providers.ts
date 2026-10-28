@@ -26,9 +26,11 @@ function number(value: unknown): number | undefined {
 }
 
 function resetSeconds(value: unknown): number | undefined {
-  const n = typeof value === "string" && !Number.isFinite(Number(value)) ? Date.parse(value) / 1000 : number(value);
-  const seconds = n === undefined ? undefined : n > 100_000_000_000 ? n / 1000 : n;
-  return seconds !== undefined && seconds > 0 && Number.isFinite(new Date(seconds * 1000).getTime()) ? seconds : undefined;
+  let seconds = typeof value === "string" && !Number.isFinite(Number(value)) ? Date.parse(value) / 1000 : number(value);
+  if (seconds === undefined) return undefined;
+  if (seconds > 100_000_000_000) seconds /= 1000;
+  if (seconds <= 0 || !Number.isFinite(new Date(seconds * 1000).getTime())) return undefined;
+  return seconds;
 }
 
 export function windowFrom(used: unknown, seconds: unknown, reset: unknown): UsageWindow | null {
@@ -104,7 +106,9 @@ export async function usageRequest(ctx: ExtensionContext, model: NonNullable<Ext
     Object.assign(headers, { "Editor-Version": "vscode/1.96.2", "User-Agent": "GitHubCopilotChat/0.26.7", "X-Github-Api-Version": "2025-04-01" });
   } else if (provider === "google-gemini-cli" && token?.startsWith("{")) {
     const credentials = record(JSON.parse(token));
-    token = typeof credentials.token === "string" ? credentials.token : typeof credentials.accessToken === "string" ? credentials.accessToken : undefined;
+    if (typeof credentials.token === "string") token = credentials.token;
+    else if (typeof credentials.accessToken === "string") token = credentials.accessToken;
+    else token = undefined;
   }
   if (!token) return null;
   headers.Authorization = `${provider === "github-copilot" ? "token" : "Bearer"} ${token}`;
@@ -135,18 +139,17 @@ interface UsageSnapshot {
 
 function parseCodexUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
   const { add } = snapshot;
-  if (Object.hasOwn(data, "rate_limit")) {
-    snapshot.recognized = true;
-    if (data.rate_limit !== null && !isObject(data.rate_limit)) snapshot.malformed = true;
-    const limits = record(data.rate_limit);
-    for (const [key, name] of [["primary", "primary_window"], ["secondary", "secondary_window"]] as const) {
-      add(key, limits[name], (w) => windowFrom(number(w.used_percent),
-        Object.hasOwn(w, "limit_window_seconds") ? number(w.limit_window_seconds) ?? NaN : undefined,
-        resetSeconds(w.reset_at) ?? relativeReset(w.reset_after_seconds)));
-    }
-    if (isObject(data.rate_limit) && Object.keys(limits).length &&
-        !Object.hasOwn(limits, "primary_window") && !Object.hasOwn(limits, "secondary_window")) snapshot.malformed = true;
+  if (!Object.hasOwn(data, "rate_limit")) return;
+  snapshot.recognized = true;
+  if (data.rate_limit !== null && !isObject(data.rate_limit)) snapshot.malformed = true;
+  const limits = record(data.rate_limit);
+  for (const [key, name] of [["primary", "primary_window"], ["secondary", "secondary_window"]] as const) {
+    add(key, limits[name], (w) => windowFrom(number(w.used_percent),
+      Object.hasOwn(w, "limit_window_seconds") ? number(w.limit_window_seconds) ?? NaN : undefined,
+      resetSeconds(w.reset_at) ?? relativeReset(w.reset_after_seconds)));
   }
+  if (isObject(data.rate_limit) && Object.keys(limits).length &&
+      !Object.hasOwn(limits, "primary_window") && !Object.hasOwn(limits, "secondary_window")) snapshot.malformed = true;
 }
 
 function parseAnthropicUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
@@ -167,31 +170,35 @@ function parseMiniMaxUsage(data: Record<string, unknown>, snapshot: UsageSnapsho
   const buckets = Array.isArray(data.model_remains) ? data.model_remains.map(record) : [];
   const w = buckets.find((b) => b.model_name === "general" && number(b.current_interval_status) === 1)
     ?? buckets.find((b) => b.model_name === "general") ?? buckets.find((b) => number(b.current_interval_status) === 1) ?? buckets[0];
-  if (w) {
-    let supplied = false;
-    for (const [key, prefix, startKey, endKey, fallback] of [
-      ["interval", "current_interval", "start_time", "end_time", 18000],
-      ["weekly", "current_weekly", "weekly_start_time", "weekly_end_time", 604800],
-    ] as const) {
-      if (!Object.hasOwn(w, `${prefix}_remaining_percent`)) continue;
-      supplied = true;
-      const remaining = number(w[`${prefix}_remaining_percent`]);
-      const start = resetSeconds(w[startKey]), end = resetSeconds(w[endKey]);
-      add(key, w, () => windowFrom(remaining === undefined ? undefined : 100 - remaining,
-        start !== undefined && end !== undefined ? end - start : fallback, end));
-    }
-    if (!supplied) snapshot.malformed = true;
+  if (!w) return;
+  let supplied = false;
+  for (const [key, prefix, startKey, endKey, fallback] of [
+    ["interval", "current_interval", "start_time", "end_time", 18000],
+    ["weekly", "current_weekly", "weekly_start_time", "weekly_end_time", 604800],
+  ] as const) {
+    if (!Object.hasOwn(w, `${prefix}_remaining_percent`)) continue;
+    supplied = true;
+    const remaining = number(w[`${prefix}_remaining_percent`]);
+    const start = resetSeconds(w[startKey]), end = resetSeconds(w[endKey]);
+    add(key, w, () => windowFrom(remaining === undefined ? undefined : 100 - remaining,
+      start !== undefined && end !== undefined ? end - start : fallback, end));
   }
+  if (!supplied) snapshot.malformed = true;
 }
 
 function parseKimiUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
   const { add } = snapshot;
   const usedPercent = (detail: Record<string, unknown>) => {
     const limit = number(detail.limit);
-    const used = Object.hasOwn(detail, "used") ? number(detail.used) : undefined;
-    const remaining = number(detail.remaining);
-    const count = Object.hasOwn(detail, "used") ? used : limit !== undefined && remaining !== undefined ? limit - remaining : undefined;
-    return limit !== undefined && limit > 0 && count !== undefined && count >= 0 && count <= limit ? count / limit * 100 : undefined;
+    let count: number | undefined;
+    if (Object.hasOwn(detail, "used")) {
+      count = number(detail.used);
+    } else {
+      const remaining = number(detail.remaining);
+      if (limit !== undefined && remaining !== undefined) count = limit - remaining;
+    }
+    if (limit === undefined || limit <= 0 || count === undefined || count < 0 || count > limit) return undefined;
+    return count / limit * 100;
   };
   const units: Record<string, number> = { TIME_UNIT_SECOND: 1, TIME_UNIT_MINUTE: 60, TIME_UNIT_HOUR: 3600, TIME_UNIT_DAY: 86400, TIME_UNIT_WEEK: 604800, TIME_UNIT_MONTH: 2592000 };
   if (Object.hasOwn(data, "limits")) {
