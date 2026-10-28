@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url, { moduleCache: false, fsCache: false });
-const { parseUsage, parseUsageWindows } = await jiti.import('../extensions/lib/usage-providers.ts');
+const { parseUsageWindows, shortest } = await jiti.import('../extensions/lib/usage-providers.ts');
+
+const parseUsage = (provider, model, payload) => shortest(Object.values(parseUsageWindows(provider, model, payload) ?? {}));
 
 test('Kimi used-only weekly counts accept numeric strings and zero', () => {
   assert.equal(parseUsage('kimi-coding', '', { usage: { limit: '100', used: '40' } }).used, 40);

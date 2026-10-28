@@ -111,6 +111,11 @@ function writeEnabled(v: boolean): void {
 
 // ── Formatting helpers ────────────────────────────────────────────────
 
+function formatPercentage(tokens: number | null | undefined, contextWindow: number): string {
+  if (tokens == null || contextWindow <= 0) return "?";
+  return `${(tokens / contextWindow * 100).toFixed(1)}%`;
+}
+
 function formatSize(n: number | null | undefined): string {
   if (n == null) return "?";
   const kilos = n / 1_000;
@@ -170,6 +175,72 @@ async function updateGitSync(state: FooterState): Promise<boolean> {
   return changed;
 }
 
+function startGitBackground(
+  state: FooterState,
+  config: FooterSettings,
+  refreshGit: () => Promise<void>,
+  request: () => void,
+): () => void {
+  let disposed = false;
+  // External commits need to become visible even when Pi is idle. Local-only
+  // queries allow a shorter interval than usage polling without network traffic.
+  const gitRefreshMs = (config.gitRefreshSeconds ?? 91) * 1000;
+  let gitTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleGitRefresh = () => {
+    if (disposed) return;
+    gitTimer = setTimeout(() => {
+      gitTimer = null;
+      void refreshGit().then(() => request()).finally(scheduleGitRefresh);
+    }, gitRefreshMs);
+    // Do not keep a non-interactive process alive solely for footer refresh.
+    gitTimer.unref?.();
+  };
+  scheduleGitRefresh();
+  let fetchTimer: ReturnType<typeof setTimeout> | null = null;
+  let fetchController: AbortController | null = null;
+  const fetchTimeoutMs = (config.gitFetchTimeoutSeconds ?? 17) * 1000;
+  const fetchGit = async () => {
+    if (disposed) return;
+    const cwd = state.cwd;
+    fetchController = new AbortController();
+    try {
+      // Never prompt for credentials in a background job. Jitter spreads
+      // network requests from concurrent Pi sessions; local polling stays independent.
+      await execFileAsync("git", ["-C", cwd, "fetch", "--quiet"], {
+        timeout: fetchTimeoutMs,
+        signal: fetchController.signal,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
+      });
+      if (!disposed && state.cwd === cwd) {
+        await refreshGit();
+        if (!disposed) request();
+      }
+    } catch {
+      // Offline, authentication, timeout and cancellation failures are silent.
+    } finally {
+      fetchController = null;
+      if (!disposed) {
+        fetchTimer = setTimeout(() => {
+          fetchTimer = null;
+          void fetchGit();
+        }, 5 * 60 * 1000 * (1 + (Math.random() * 2 - 1) / 8));
+        fetchTimer.unref?.();
+      }
+    }
+  };
+  if (config.gitFetch === true) void fetchGit();
+
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    if (gitTimer) clearTimeout(gitTimer);
+    gitTimer = null;
+    if (fetchTimer) clearTimeout(fetchTimer);
+    fetchTimer = null;
+    fetchController?.abort();
+  };
+}
+
 function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSettings): void {
   const cwd = ctx.cwd ?? process.cwd();
   if (state.cwd !== cwd) {
@@ -182,7 +253,7 @@ function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSe
   const usage = ctx.getContextUsage();
   if (usage) {
     const fTokens = config.contextAsPercentage === true
-      ? (usage.tokens == null || usage.contextWindow <= 0 ? "?" : `${(usage.tokens / usage.contextWindow * 100).toFixed(1)}%`)
+      ? formatPercentage(usage.tokens, usage.contextWindow)
       : formatSize(usage.tokens);
     const fWindow = formatSize(usage.contextWindow);
     state.context = `${fTokens}/${fWindow}`;
@@ -203,11 +274,23 @@ const LOCATION_GAP_WIDTH = 3;
 const MIN_TEXT_WIDTH = 4;
 const MIN_STATUS_WIDTH = 12;
 
-function buildLine(
-  width: number, path: string, statuses: string, branch: string, model: string, context: string,
-  usage: (available: number, maxCells?: number) => string | null,
-  statusSeparator: string, locationSeparator: string, maxUsageBarCells: number,
-): string {
+interface LineParts {
+  width: number;
+  path: string;
+  statuses: string;
+  branch: string;
+  model: string;
+  context: string;
+  usage: (available: number, maxCells?: number) => string | null;
+  statusSeparator: string;
+  locationSeparator: string;
+  maxUsageBarCells: number;
+}
+
+function buildLine({
+  width, path, statuses, branch, model, context, usage,
+  statusSeparator, locationSeparator, maxUsageBarCells,
+}: LineParts): string {
   if (width <= 0) return "";
   if (width <= 2) return " ".repeat(width);
   width -= 2;
@@ -294,6 +377,7 @@ export default function (pi: ExtensionAPI) {
 
   function install(ctx: ExtensionContext): void {
     config = readConfig();
+    updateState(ctx, state, config);
     if (ctx.mode !== "tui") { usageLimits.stop(); return; }
 
     if (!enabled) {
@@ -312,62 +396,12 @@ export default function (pi: ExtensionAPI) {
       const request = () => tui.requestRender();
       requestRender = request;
       let disposed = false;
-      // External commits need to become visible even when Pi is idle. Local-only
-      // queries allow a shorter interval than usage polling without network traffic.
-      const gitRefreshMs = (config.gitRefreshSeconds ?? 91) * 1000;
-      let gitTimer: ReturnType<typeof setTimeout> | null = null;
-      const scheduleGitRefresh = () => {
-        if (disposed) return;
-        gitTimer = setTimeout(() => {
-          gitTimer = null;
-          void refreshGit().then(() => tui.requestRender()).finally(scheduleGitRefresh);
-        }, gitRefreshMs);
-        // Do not keep a non-interactive process alive solely for footer refresh.
-        gitTimer.unref?.();
-      };
-      scheduleGitRefresh();
-      let fetchTimer: ReturnType<typeof setTimeout> | null = null;
-      let fetchController: AbortController | null = null;
-      const fetchTimeoutMs = (config.gitFetchTimeoutSeconds ?? 17) * 1000;
-      const fetchGit = async () => {
-        if (disposed) return;
-        const cwd = state.cwd;
-        fetchController = new AbortController();
-        try {
-          // Never prompt for credentials in a background job. Jitter spreads
-          // network requests from concurrent Pi sessions; local polling stays independent.
-          await execFileAsync("git", ["-C", cwd, "fetch", "--quiet"], {
-            timeout: fetchTimeoutMs,
-            signal: fetchController.signal,
-            env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
-          });
-          if (!disposed && state.cwd === cwd) {
-            await refreshGit();
-            if (!disposed) tui.requestRender();
-          }
-        } catch {
-          // Offline, authentication, timeout and cancellation failures are silent.
-        } finally {
-          fetchController = null;
-          if (!disposed) {
-            fetchTimer = setTimeout(() => {
-              fetchTimer = null;
-              void fetchGit();
-            }, 5 * 60 * 1000 * (1 + (Math.random() * 2 - 1) / 8));
-            fetchTimer.unref?.();
-          }
-        }
-      };
-      if (config.gitFetch === true) void fetchGit();
+      const stopGitBackground = startGitBackground(state, config, refreshGit, request);
       const dispose = () => {
         if (disposed) return;
         disposed = true;
         unsub();
-        if (gitTimer) clearTimeout(gitTimer);
-        gitTimer = null;
-        if (fetchTimer) clearTimeout(fetchTimer);
-        fetchTimer = null;
-        fetchController?.abort();
+        stopGitBackground();
         // A superseded renderer must not stop its replacement's usage polling.
         if (requestRender === request) {
           requestRender = null;
@@ -389,19 +423,19 @@ export default function (pi: ExtensionAPI) {
           const branchText = branch ? ` ${branch}${state.gitSync}` : "";
           const gitText = state.gitHighlighted ? theme.bold(branchText) : branchText;
           const statusSeparator = config.powerlineSeparator ? theme.fg("dim", "  ") : " ";
-          const line = buildLine(
+          const line = buildLine({
             width,
-            config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
-            statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
+            path: config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
+            statuses: statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
             // Pulse weight independently of the existing divergence color.
-            branchText ? theme.fg(state.gitSync ? "text" : "dim", gitText) : "",
-            config.showModel ? theme.bold(state.model) : "",
-            config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
-            (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
+            branch: branchText ? theme.fg(state.gitSync ? "text" : "dim", gitText) : "",
+            model: config.showModel ? theme.bold(state.model) : "",
+            context: config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
+            usage: (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
             statusSeparator,
-            config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
-            config.maxUsageBarCells ?? MAX_BAR_CELLS,
-          );
+            locationSeparator: config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
+            maxUsageBarCells: config.maxUsageBarCells ?? MAX_BAR_CELLS,
+          });
           return [line];
         },
         invalidate(): void {},
@@ -430,16 +464,15 @@ export default function (pi: ExtensionAPI) {
         !("enabled" in data) || typeof data.enabled !== "boolean") return;
     if (enabled === data.enabled && (!enabled || disposeFooter !== null)) return;
     enabled = data.enabled;
-    updateState(currentCtx, state, config);
     install(currentCtx);
     refreshFooter();
   });
 
   pi.on("session_start", async (_event, ctx) => {
     currentCtx = ctx;
-    enabled = readConfig().enabled !== false;
+    config = readConfig();
+    enabled = config.enabled !== false;
     usageLimits.stop();
-    updateState(ctx, state, config);
     install(ctx);
     refreshFooter();
   });
@@ -492,7 +525,6 @@ export default function (pi: ExtensionAPI) {
       else if (args === "off") enabled = false;
       else enabled = !enabled;
       writeEnabled(enabled);
-      updateState(ctx, state, config);
       install(ctx);
       refreshFooter();
       ctx.ui.notify(`Minimal footer ${enabled ? "enabled" : "disabled"}`, "info");

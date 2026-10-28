@@ -41,6 +41,7 @@ The bar and reset label have no intervening space. Reset formatting uses local c
 - Default to tokens used / context window, with an explicit `k` suffix on both values. Never deduplicate units across the slash.
 - Always use kilos, including for million-token windows (`1000k`, not `1M`). Below 10k, use two significant digits where one-token resolution permits, capped at three decimal places in kilos: `0.001k`, `0.012k`, `0.11k`, `0.78k`, `0.99k`, `1.0k`, `9.0k`. At and above 10k, round to whole kilos: `10k`, `124k`, `1000k`. Zero is `0k`; rounding can promote `9.999k` to `10k`.
 - `minFooter.contextAsPercentage` defaults to `false`. Opting in replaces only the numerator with percentage used to one decimal place, e.g. `24.7%/500k`. Keep context distinct from the subscription usage bar.
+- Reload settings at installation boundaries (enable and session start) before deriving footer state, so the first render uses the effective configuration. Ordinary refreshes use the cached configuration and must not reload settings.
 - Unknown token usage is `?/500k` in either mode; absent context usage is `?`. Never present unknown usage as zero.
 
 ## Git contract
@@ -137,16 +138,22 @@ Disabling restores Pi's default footer only if we still own the active footer; o
 
 ### Code map
 
-- `extensions/index.ts`: settings, plain state updates, active-footer refresh gate, layout, footer lifecycle, and `/minfooter`.
+- `extensions/index.ts`: settings, plain state updates, active-footer refresh gate, layout, footer lifecycle, and `/minfooter`. Private `startGitBackground` owns local polling and optional fetch cleanup; renderer ownership and the shared Git refresh/pulse logic stay in the extension closure.
 - `extensions/lib/usage-limits.ts`: usage refresh, cache, cancellation, and bar/reset rendering.
-- `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and response normalization.
-- `tests/`: lifecycle/layout regressions, Git highlighting with a temporary repository, and usage parsing tests.
+- `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and named private provider parsers. `parseUsageWindows` gates supported endpoints, dispatches parsing with an explicit snapshot, and centrally distinguishes valid windows, absence, and malformed responses.
+- `tests/min-footer.test.mjs`: settings, session lifecycle, and context-format integration coverage.
+- `tests/layout.test.mjs`: layout, ANSI/Unicode, and usage bar/reset formatting.
+- `tests/git.test.mjs`: fetch jitter, live ownership, and Git highlighting with a temporary repository.
+- `tests/usage-lifecycle.test.mjs`: usage authentication, polling, cancellation, passive updates, and provider integration.
+- `tests/helpers/footer-fixture.mjs`: shared real-loader/context helpers and per-process isolated agent/home setup, default settings resets, and teardown.
+- `tests/usage-parsing.test.mjs`: provider parsing.
+- `tests/persistence-order.test.mjs`: real `AgentSession` message persistence and post-persistence footer usage.
 
 Settings live under `minFooter` in Pi's configured agent directory. Read them at session start or explicit toggle; ordinary refreshes use cached settings. Preserve unrelated settings on writes. Only install the footer in interactive terminal mode.
 
 ### Checking changes
 
-Run `npm run check` and `npm test` for behavior changes. Cover relevant cases:
+Run `npm run check` and `npm test` for behavior changes. Each test file can also run independently, e.g. `node --test tests/git.test.mjs`. Keep the default per-file process isolation: the shared footer fixture sets isolated agent/home environment paths before importing Pi and resets settings and `Math.random` for each test. Provider requests are mocked; numeric context formatting remains real-loader integration coverage. Cover relevant cases:
 
 - Layout: narrow widths, ANSI/wide Unicode, field priority, and separator modes.
 - Git: divergence, synced styling, highlight expiry/restart, and user submissions versus tool turns.

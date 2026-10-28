@@ -126,131 +126,125 @@ function relativeReset(value: unknown): number | undefined {
   return delay !== undefined && delay >= 0 ? resetSeconds(Date.now() / 1000 + delay) : undefined;
 }
 
-export function parseUsageWindows(provider: string, model: string, payload: unknown): Record<string, UsageWindow> | null {
-  if (!ENDPOINTS[provider]) return null;
-  const windows: Record<string, UsageWindow> = {};
-  let recognized = false;
-  let malformed = !isObject(payload);
-  const data = record(payload);
-  const add = (key: string, value: unknown, parse: (w: Record<string, unknown>) => UsageWindow | null) => {
-    if (value === undefined) return;
-    recognized = true;
-    if (value === null) return;
-    const window = isObject(value) ? parse(value) : null;
-    if (window) windows[key] = window;
-    else malformed = true;
+interface UsageSnapshot {
+  windows: Record<string, UsageWindow>;
+  recognized: boolean;
+  malformed: boolean;
+  add: (key: string, value: unknown, parse: (w: Record<string, unknown>) => UsageWindow | null) => void;
+}
+
+function parseCodexUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
+  const { add } = snapshot;
+  if (Object.hasOwn(data, "rate_limit")) {
+    snapshot.recognized = true;
+    if (data.rate_limit !== null && !isObject(data.rate_limit)) snapshot.malformed = true;
+    const limits = record(data.rate_limit);
+    for (const [key, name] of [["primary", "primary_window"], ["secondary", "secondary_window"]] as const) {
+      add(key, limits[name], (w) => windowFrom(number(w.used_percent),
+        Object.hasOwn(w, "limit_window_seconds") ? number(w.limit_window_seconds) ?? NaN : undefined,
+        resetSeconds(w.reset_at) ?? relativeReset(w.reset_after_seconds)));
+    }
+    if (isObject(data.rate_limit) && Object.keys(limits).length &&
+        !Object.hasOwn(limits, "primary_window") && !Object.hasOwn(limits, "secondary_window")) snapshot.malformed = true;
+  }
+}
+
+function parseAnthropicUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
+  const { add } = snapshot;
+  for (const [name, seconds] of [["five_hour", 18000], ["seven_day", 604800]] as const) {
+    add(name, data[name], (w) => windowFrom(number(w.utilization), seconds, resetSeconds(w.resets_at)));
+  }
+}
+
+function parseMiniMaxUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
+  const { add } = snapshot;
+  const status = number(record(data.base_resp).status_code);
+  if (status !== undefined && status !== 0) throw new Error("MiniMax usage unavailable");
+  if (Object.hasOwn(data, "model_remains")) {
+    snapshot.recognized = true;
+    if (data.model_remains !== null && !Array.isArray(data.model_remains)) snapshot.malformed = true;
+  }
+  const buckets = Array.isArray(data.model_remains) ? data.model_remains.map(record) : [];
+  const w = buckets.find((b) => b.model_name === "general" && number(b.current_interval_status) === 1)
+    ?? buckets.find((b) => b.model_name === "general") ?? buckets.find((b) => number(b.current_interval_status) === 1) ?? buckets[0];
+  if (w) {
+    let supplied = false;
+    for (const [key, prefix, startKey, endKey, fallback] of [
+      ["interval", "current_interval", "start_time", "end_time", 18000],
+      ["weekly", "current_weekly", "weekly_start_time", "weekly_end_time", 604800],
+    ] as const) {
+      if (!Object.hasOwn(w, `${prefix}_remaining_percent`)) continue;
+      supplied = true;
+      const remaining = number(w[`${prefix}_remaining_percent`]);
+      const start = resetSeconds(w[startKey]), end = resetSeconds(w[endKey]);
+      add(key, w, () => windowFrom(remaining === undefined ? undefined : 100 - remaining,
+        start !== undefined && end !== undefined ? end - start : fallback, end));
+    }
+    if (!supplied) snapshot.malformed = true;
+  }
+}
+
+function parseKimiUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
+  const { add } = snapshot;
+  const usedPercent = (detail: Record<string, unknown>) => {
+    const limit = number(detail.limit);
+    const used = Object.hasOwn(detail, "used") ? number(detail.used) : undefined;
+    const remaining = number(detail.remaining);
+    const count = Object.hasOwn(detail, "used") ? used : limit !== undefined && remaining !== undefined ? limit - remaining : undefined;
+    return limit !== undefined && limit > 0 && count !== undefined && count >= 0 && count <= limit ? count / limit * 100 : undefined;
   };
-  // Valid siblings remain useful; explicit absence clears cache, while malformed
-  // snapshots throw so a temporary provider failure retains dimmed cached usage.
-  const finish = () => {
-    if (Object.keys(windows).length) return windows;
-    if (recognized && !malformed) return null;
-    throw new Error(`${provider} usage response malformed`);
-  };
-  if (provider === "openai-codex") {
-    if (Object.hasOwn(data, "rate_limit")) {
-      recognized = true;
-      if (data.rate_limit !== null && !isObject(data.rate_limit)) malformed = true;
-      const limits = record(data.rate_limit);
-      for (const [key, name] of [["primary", "primary_window"], ["secondary", "secondary_window"]] as const) {
-        add(key, limits[name], (w) => windowFrom(number(w.used_percent),
-          Object.hasOwn(w, "limit_window_seconds") ? number(w.limit_window_seconds) ?? NaN : undefined,
-          resetSeconds(w.reset_at) ?? relativeReset(w.reset_after_seconds)));
-      }
-      if (isObject(data.rate_limit) && Object.keys(limits).length &&
-          !Object.hasOwn(limits, "primary_window") && !Object.hasOwn(limits, "secondary_window")) malformed = true;
-    }
-    return finish();
+  const units: Record<string, number> = { TIME_UNIT_SECOND: 1, TIME_UNIT_MINUTE: 60, TIME_UNIT_HOUR: 3600, TIME_UNIT_DAY: 86400, TIME_UNIT_WEEK: 604800, TIME_UNIT_MONTH: 2592000 };
+  if (Object.hasOwn(data, "limits")) {
+    snapshot.recognized = true;
+    if (data.limits !== null && !Array.isArray(data.limits)) snapshot.malformed = true;
   }
-  if (provider === "anthropic") {
-    for (const [name, seconds] of [["five_hour", 18000], ["seven_day", 604800]] as const) {
-      add(name, data[name], (w) => windowFrom(number(w.utilization), seconds, resetSeconds(w.resets_at)));
+  for (const value of Array.isArray(data.limits) ? data.limits : []) {
+    if (!isObject(value)) {
+      snapshot.malformed = true;
+      continue;
     }
-    return finish();
+    const w = record(value), time = record(w.window), detail = record(w.detail);
+    const duration = number(time.duration), unit = typeof time.timeUnit === "string" ? time.timeUnit : "";
+    const seconds = duration !== undefined && units[unit] ? duration * units[unit] : NaN;
+    add(`${duration}:${unit}`, value, () => windowFrom(usedPercent(detail), seconds, resetSeconds(detail.resetTime)));
   }
-  if (provider === "minimax" || provider === "minimax-cn") {
-    const status = number(record(data.base_resp).status_code);
-    if (status !== undefined && status !== 0) throw new Error("MiniMax usage unavailable");
-    if (Object.hasOwn(data, "model_remains")) {
-      recognized = true;
-      if (data.model_remains !== null && !Array.isArray(data.model_remains)) malformed = true;
-    }
-    const buckets = Array.isArray(data.model_remains) ? data.model_remains.map(record) : [];
-    const w = buckets.find((b) => b.model_name === "general" && number(b.current_interval_status) === 1)
-      ?? buckets.find((b) => b.model_name === "general") ?? buckets.find((b) => number(b.current_interval_status) === 1) ?? buckets[0];
-    if (w) {
-      let supplied = false;
-      for (const [key, prefix, startKey, endKey, fallback] of [
-        ["interval", "current_interval", "start_time", "end_time", 18000],
-        ["weekly", "current_weekly", "weekly_start_time", "weekly_end_time", 604800],
-      ] as const) {
-        if (!Object.hasOwn(w, `${prefix}_remaining_percent`)) continue;
-        supplied = true;
-        const remaining = number(w[`${prefix}_remaining_percent`]);
-        const start = resetSeconds(w[startKey]), end = resetSeconds(w[endKey]);
-        add(key, w, () => windowFrom(remaining === undefined ? undefined : 100 - remaining,
-          start !== undefined && end !== undefined ? end - start : fallback, end));
-      }
-      if (!supplied) malformed = true;
-    }
-    return finish();
+  add("weekly", data.usage, (w) => windowFrom(usedPercent(w), 604800, resetSeconds(w.resetTime)));
+}
+
+function parseOpenCodeUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
+  const { add } = snapshot;
+  for (const [name, seconds] of [["rollingUsage", 18000], ["weeklyUsage", 604800], ["monthlyUsage", 2592000]] as const) {
+    add(name, data[name], (w) => windowFrom(number(w.usagePercent), seconds, relativeReset(w.resetInSec)));
   }
-  if (provider === "kimi-coding") {
-    const usedPercent = (detail: Record<string, unknown>) => {
-      const limit = number(detail.limit);
-      const used = Object.hasOwn(detail, "used") ? number(detail.used) : undefined;
-      const remaining = number(detail.remaining);
-      const count = Object.hasOwn(detail, "used") ? used : limit !== undefined && remaining !== undefined ? limit - remaining : undefined;
-      return limit !== undefined && limit > 0 && count !== undefined && count >= 0 && count <= limit ? count / limit * 100 : undefined;
-    };
-    const units: Record<string, number> = { TIME_UNIT_SECOND: 1, TIME_UNIT_MINUTE: 60, TIME_UNIT_HOUR: 3600, TIME_UNIT_DAY: 86400, TIME_UNIT_WEEK: 604800, TIME_UNIT_MONTH: 2592000 };
-    if (Object.hasOwn(data, "limits")) {
-      recognized = true;
-      if (data.limits !== null && !Array.isArray(data.limits)) malformed = true;
-    }
-    for (const value of Array.isArray(data.limits) ? data.limits : []) {
-      if (!isObject(value)) {
-        malformed = true;
-        continue;
-      }
-      const w = record(value), time = record(w.window), detail = record(w.detail);
-      const duration = number(time.duration), unit = typeof time.timeUnit === "string" ? time.timeUnit : "";
-      const seconds = duration !== undefined && units[unit] ? duration * units[unit] : NaN;
-      add(`${duration}:${unit}`, value, () => windowFrom(usedPercent(detail), seconds, resetSeconds(detail.resetTime)));
-    }
-    add("weekly", data.usage, (w) => windowFrom(usedPercent(w), 604800, resetSeconds(w.resetTime)));
-    return finish();
+}
+
+function parseCopilotUsage(data: Record<string, unknown>, snapshot: UsageSnapshot): void {
+  const { add } = snapshot;
+  if (Object.hasOwn(data, "quota_snapshots")) {
+    snapshot.recognized = true;
+    if (data.quota_snapshots !== null && !isObject(data.quota_snapshots)) snapshot.malformed = true;
   }
-  if (provider === "opencode-go") {
-    for (const [name, seconds] of [["rollingUsage", 18000], ["weeklyUsage", 604800], ["monthlyUsage", 2592000]] as const) {
-      add(name, data[name], (w) => windowFrom(number(w.usagePercent), seconds, relativeReset(w.resetInSec)));
-    }
-    return finish();
+  for (const [name, value] of Object.entries(isObject(data.quota_snapshots) ? data.quota_snapshots : {})) {
+    if (record(value).unlimited === true) continue;
+    add(name, value, (w) => {
+      const remaining = number(w.percent_remaining);
+      return windowFrom(remaining === undefined ? undefined : 100 - remaining, 2592000, resetSeconds(data.quota_reset_date_utc));
+    });
   }
-  if (provider === "github-copilot") {
-    if (Object.hasOwn(data, "quota_snapshots")) {
-      recognized = true;
-      if (data.quota_snapshots !== null && !isObject(data.quota_snapshots)) malformed = true;
-    }
-    for (const [name, value] of Object.entries(isObject(data.quota_snapshots) ? data.quota_snapshots : {})) {
-      if (record(value).unlimited === true) continue;
-      add(name, value, (w) => {
-        const remaining = number(w.percent_remaining);
-        return windowFrom(remaining === undefined ? undefined : 100 - remaining, 2592000, resetSeconds(data.quota_reset_date_utc));
-      });
-    }
-    return finish();
-  }
+}
+
+function parseGeminiUsage(data: Record<string, unknown>, snapshot: UsageSnapshot, model: string): void {
+  const { add, windows } = snapshot;
   // Gemini only exposes quotas for the selected model, or a recognizable model family.
   if (Object.hasOwn(data, "buckets")) {
-    recognized = true;
-    if (data.buckets !== null && !Array.isArray(data.buckets)) malformed = true;
+    snapshot.recognized = true;
+    if (data.buckets !== null && !Array.isArray(data.buckets)) snapshot.malformed = true;
   }
   const buckets = Array.isArray(data.buckets) ? data.buckets.map(record) : [];
   const valid = buckets.filter((b) => {
     const remaining = number(b.remainingFraction);
     const ok = typeof b.modelId === "string" && b.modelId.length > 0 && remaining !== undefined && remaining >= 0 && remaining <= 1;
-    if (!ok) malformed = true;
+    if (!ok) snapshot.malformed = true;
     return ok;
   });
   // A malformed exact match must not substitute another model family's quota.
@@ -263,9 +257,35 @@ export function parseUsageWindows(provider: string, model: string, payload: unkn
     while (Object.hasOwn(windows, key)) key = `${identity}:${duplicate++}`;
     add(key, b, () => windowFrom((1 - number(b.remainingFraction)!) * 100, undefined, resetSeconds(b.resetTime)));
   }
-  return finish();
 }
 
-export function parseUsage(provider: string, model: string, payload: unknown): UsageWindow | null {
-  return shortest(Object.values(parseUsageWindows(provider, model, payload) ?? {}));
+export function parseUsageWindows(provider: string, model: string, payload: unknown): Record<string, UsageWindow> | null {
+  if (!ENDPOINTS[provider]) return null;
+  const snapshot: UsageSnapshot = {
+    windows: {},
+    recognized: false,
+    malformed: !isObject(payload),
+    add(key, value, parse) {
+      if (value === undefined) return;
+      snapshot.recognized = true;
+      if (value === null) return;
+      const window = isObject(value) ? parse(value) : null;
+      if (window) snapshot.windows[key] = window;
+      else snapshot.malformed = true;
+    },
+  };
+  const data = record(payload);
+  if (provider === "openai-codex") parseCodexUsage(data, snapshot);
+  else if (provider === "anthropic") parseAnthropicUsage(data, snapshot);
+  else if (provider === "minimax" || provider === "minimax-cn") parseMiniMaxUsage(data, snapshot);
+  else if (provider === "kimi-coding") parseKimiUsage(data, snapshot);
+  else if (provider === "opencode-go") parseOpenCodeUsage(data, snapshot);
+  else if (provider === "github-copilot") parseCopilotUsage(data, snapshot);
+  else parseGeminiUsage(data, snapshot, model);
+
+  // Valid siblings remain useful; explicit absence clears cache, while malformed
+  // snapshots throw so a temporary provider failure retains dimmed cached usage.
+  if (Object.keys(snapshot.windows).length) return snapshot.windows;
+  if (snapshot.recognized && !snapshot.malformed) return null;
+  throw new Error(`${provider} usage response malformed`);
 }
