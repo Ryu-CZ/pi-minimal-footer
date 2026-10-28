@@ -85,6 +85,8 @@ Counts require a configured upstream. Unsynced branches use normal text color; s
 
 `42k/200k` means tokens used / context window. Set `"contextAsPercentage": true` under `minFooter` to show `21.0%/200k` instead. Unknown token usage shows `?/200k` when the window is known, or `?` when context information is unavailable.
 
+The whole context label keeps its normal dim color below 85% of Pi’s compaction trigger (`contextWindow - reserveTokens`), turns yellowish (`warning`) at 85%, and red (`error`) at 92%. It uses Pi’s effective compaction settings, including exact `provider/modelId` overrides, with a default reserve of 16,384 tokens. Colors apply in both display modes, even when auto-compaction is disabled. Unknown usage or a non-positive trigger keeps the normal color.
+
 ### Subscription usage
 
 `[⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h` shows **subscription allowance used**, not context usage.

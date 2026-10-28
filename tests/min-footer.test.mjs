@@ -4,6 +4,50 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { agentDir, createEventBus, theme, makeContext, provider, stripAnsi, installExtension, start, emit } from './helpers/footer-fixture.mjs';
 
+test('whole context label follows the effective compaction budget', async () => {
+  for (const percentage of [false, true]) {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { contextAsPercentage: percentage } }));
+    const runtime = await installExtension();
+    const fixture = makeContext();
+    fixture.ctx.model.provider = 'test';
+    const cases = [
+      [{}, 94873, 128000, 'dim'],
+      [{}, 94874, 128000, 'warning'],
+      [{}, 102687, 128000, 'error'],
+      [{ reserveTokens: 28000 }, 84999, 128000, 'dim'],
+      [{ reserveTokens: 28000 }, 85000, 128000, 'warning'],
+      [{ reserveTokens: 28000 }, 91999, 128000, 'warning'],
+      [{ reserveTokens: 28000 }, 92000, 128000, 'error'],
+      [{ reserveTokens: 28000, enabled: false }, 100001, 128000, 'error'],
+      [{ reserveTokens: 0 }, 117760, 128000, 'error'],
+      [{ reserveTokens: 28000, modelOverrides: { 'test/test-model': { reserveTokens: 0 } } }, 92000, 128000, 'dim'],
+      [{ reserveTokens: 0, modelOverrides: { 'test/test-model': { reserveTokens: 28000 } } }, 92000, 128000, 'error'],
+      [{ reserveTokens: 28000, modelOverrides: { 'test/test-model': { keepRecentTokens: 1000 } } }, 92000, 128000, 'error'],
+      [{ reserveTokens: 28000, modelOverrides: { 'other/test-model': { reserveTokens: 0 } } }, 92000, 128000, 'error'],
+      [{ reserveTokens: 128000 }, 92000, 128000, 'dim'],
+      [{ reserveTokens: 200000 }, 92000, 128000, 'dim'],
+      [{}, null, 128000, 'dim'],
+      [{}, 10, 0, 'dim'],
+    ];
+    try {
+      await start(runtime, fixture.ctx);
+      for (const [compaction, tokens, contextWindow, color] of cases) {
+        runtime.setSettings({ compaction });
+        fixture.usage = { tokens, contextWindow };
+        await emit(runtime, 'turn_end', fixture.ctx);
+        const line = fixture.ui.component.render(160)[0];
+        const label = stripAnsi(line).split(' · ').at(-1).trim();
+        assert.ok(line.includes(theme.fg(color, theme.bold(label))), `${JSON.stringify(compaction)} at ${tokens}: expected ${color}`);
+      }
+      fixture.usage = undefined;
+      await emit(runtime, 'turn_end', fixture.ctx);
+      assert.ok(fixture.ui.component.render(160)[0].includes(theme.fg('dim', theme.bold('?'))));
+    } finally {
+      await emit(runtime, 'session_shutdown', fixture.ctx);
+    }
+  }
+});
+
 test('context percentage is opt-in and preserves unknown usage', async () => {
   for (const [setting, usage, expected] of [
     [undefined, { tokens: 988, contextWindow: 500000 }, '0.99k/500k'],

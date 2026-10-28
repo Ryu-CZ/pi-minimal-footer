@@ -48,15 +48,26 @@ interface FooterState {
   cwd: string;
   model: string;
   context: string;
+  contextColor: "dim" | "warning" | "error";
 }
 
-function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSettings, git: GitStatus): void {
+function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSettings, git: GitStatus, settings: ReturnType<ExtensionAPI["getSettings"]>): void {
   const cwd = ctx.cwd ?? process.cwd();
   state.cwd = cwd;
   git.setCwd(cwd);
   state.model = ctx.model?.id ?? "no-model";
   const usage = ctx.getContextUsage();
+  state.contextColor = "dim";
   if (usage) {
+    const compaction = settings.compaction;
+    const modelKey = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
+    const reserve = (modelKey ? compaction?.modelOverrides?.[modelKey]?.reserveTokens : undefined)
+      ?? compaction?.reserveTokens ?? 16384;
+    const trigger = usage.contextWindow - reserve;
+    if (usage.tokens != null && trigger > 0) {
+      const ratio = usage.tokens / trigger;
+      state.contextColor = ratio >= 0.92 ? "error" : ratio >= 0.85 ? "warning" : "dim";
+    }
     const fTokens = config.contextAsPercentage === true
       ? formatPercentage(usage.tokens, usage.contextWindow)
       : formatSize(usage.tokens);
@@ -73,7 +84,7 @@ export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
   let currentCtx: ExtensionContext | undefined;
-  const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?" };
+  const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?", contextColor: "dim" };
   const git = new GitStatus(state.cwd);
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
@@ -86,7 +97,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function install(ctx: ExtensionContext): void {
-    updateState(ctx, state, config, git);
+    updateState(ctx, state, config, git, pi.getSettings());
     if (ctx.mode !== "tui") { usageLimits.stop(); return; }
 
     if (!enabled) {
@@ -139,7 +150,7 @@ export default function (pi: ExtensionAPI) {
             // Pulse weight independently of the existing divergence color.
             branch: branchText ? theme.fg(git.sync ? "text" : "dim", gitText) : "",
             model: config.showModel ? theme.bold(state.model) : "",
-            context: config.showContext ? theme.fg("dim", theme.bold(state.context)) : "",
+            context: config.showContext ? theme.fg(state.contextColor, theme.bold(state.context)) : "",
             usage: (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
             statusSeparator,
             locationSeparator: config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
@@ -162,7 +173,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function refresh(ctx: ExtensionContext): void {
-    updateState(ctx, state, config, git);
+    updateState(ctx, state, config, git, pi.getSettings());
     refreshFooter();
   }
 

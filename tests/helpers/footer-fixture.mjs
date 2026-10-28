@@ -96,6 +96,8 @@ async function installExtension(eventBus) {
   const result = await loadExtensions([join(root, 'extensions')], root, eventBus);
   assert.deepEqual(result.errors, [], JSON.stringify(result.errors));
   assert.equal(result.extensions.length, 1);
+  result.runtime.getSettings = () => ({});
+  result.extensions[0].setSettings = (settings) => { result.runtime.getSettings = () => settings; };
   return result.extensions[0];
 }
 
