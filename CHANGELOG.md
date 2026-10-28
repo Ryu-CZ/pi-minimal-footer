@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-28
+
 ### Added
 
 - Optional percentage context display, e.g. `24.7%/500k`, enabled with `minFooter.contextAsPercentage`
@@ -271,7 +273,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.5.3...v0.6.0
