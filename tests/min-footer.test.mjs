@@ -254,6 +254,8 @@ test('disposing an old renderer cannot clear a newer renderer; both subscription
   const oldComponent = ui.component;
   oldRenders = 0;
   const currentComponent = ui.factory({ requestRender: () => newRenders++ }, theme, newProvider);
+  oldProvider.fire();
+  assert.equal(oldRenders, 0, 'superseded callbacks are inert even before disposal');
   oldComponent.dispose(); oldComponent.dispose();
   await emit(runtime, 'model_select', ctx);
   oldProvider.fire(); newProvider.fire();

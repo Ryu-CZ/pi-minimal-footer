@@ -138,12 +138,15 @@ Disabling restores Pi's default footer only if we still own the active footer; o
 
 ### Code map
 
-- `extensions/index.ts`: settings, plain state updates, active-footer refresh gate, layout, footer lifecycle, and `/minfooter`. Private `startGitBackground` owns local polling and optional fetch cleanup; renderer ownership and the shared Git refresh/pulse logic stay in the extension closure.
+- `extensions/index.ts`: Pi events/commands, footer ownership, model/context formatting, theme application, and module wiring.
+- `extensions/lib/footer-settings.ts`: defaults, validation, and settings persistence; preserves unrelated preferences.
+- `extensions/lib/footer-layout.ts`: width allocation and truncation of supplied segments, independent of Pi lifecycle and theme selection.
+- `extensions/lib/git-status.ts`: Git divergence state, stale-result protection, highlight pulses, local polling, and optional fetch/cancellation. The active renderer starts/stops this lifecycle; superseded renderer disposal cannot stop its replacement.
 - `extensions/lib/usage-limits.ts`: usage refresh, cache, cancellation, and bar/reset rendering.
 - `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and named private provider parsers. `parseUsageWindows` gates supported endpoints, dispatches parsing with an explicit snapshot, and centrally distinguishes valid windows, absence, and malformed responses.
 - `tests/min-footer.test.mjs`: settings, session lifecycle, and context-format integration coverage.
 - `tests/layout.test.mjs`: layout, ANSI/Unicode, and usage bar/reset formatting.
-- `tests/git.test.mjs`: fetch jitter, live ownership, and Git highlighting with a temporary repository.
+- `tests/git.test.mjs`: fetch jitter, live ownership, stale queries across refresh/restart/directory changes, and Git highlighting with a temporary repository.
 - `tests/usage-lifecycle.test.mjs`: usage authentication, polling, cancellation, passive updates, and provider integration.
 - `tests/helpers/footer-fixture.mjs`: shared real-loader/context helpers and per-process isolated agent/home setup, default settings resets, and teardown.
 - `tests/usage-parsing.test.mjs`: provider parsing.

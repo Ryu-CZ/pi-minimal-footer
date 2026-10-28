@@ -65,6 +65,7 @@ for (const [random, interval] of [[0, 262500], [0.5, 300000], [1, 337500]]) {
 }
 
 test('Git queries follow live footer ownership and resume on explicit enable', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   let queries = 0;
   const realPromisify = util.promisify;
   const mockPromisify = t.mock.method(util, 'promisify', (fn) => {
@@ -84,8 +85,16 @@ test('Git queries follow live footer ownership and resume on explicit enable', a
   await start(runtime, ctx);
   await settle();
   assert.equal(queries, 1, 'startup initializes Git once');
+  t.mock.timers.tick(90999);
+  assert.equal(queries, 1, 'local polling waits for its configured interval');
+  t.mock.timers.tick(1);
+  await settle();
+  assert.equal(queries, 2, 'local polling refreshes while idle');
   await runtime.commands.get('minfooter').handler('off', ctx);
   const hiddenQueries = queries;
+  t.mock.timers.tick(182000);
+  await settle();
+  assert.equal(queries, hiddenQueries, 'disposal cancels local polling');
   await emit(runtime, 'turn_end', ctx);
   await start(runtime, ctx);
   await settle();
@@ -110,6 +119,116 @@ test('Git queries follow live footer ownership and resume on explicit enable', a
   }
   assert.equal(ui.component, undefined);
 });
+
+for (const scenario of ['renderer restart', 'directory round trip', 'disposal']) {
+  test(`Git cancels pending fetch and ignores its late success after ${scenario}`, async (t) => {
+    const fetches = [];
+    let queries = 0;
+    const realPromisify = util.promisify;
+    const mockPromisify = t.mock.method(util, 'promisify', (fn) => {
+      const original = realPromisify(fn);
+      if (fn.name !== 'execFile') return original;
+      return async (...args) => {
+        if (args[0] !== 'git') return original(...args);
+        if (args[1].includes('fetch')) {
+          assert.equal(args[2].timeout, 17000);
+          assert.equal(args[2].env.GIT_TERMINAL_PROMPT, '0');
+          assert.equal(args[2].env.GCM_INTERACTIVE, 'never');
+          return new Promise((resolve) => fetches.push({ signal: args[2].signal, resolve }));
+        }
+        queries++;
+        return { stdout: '0 0', stderr: '' };
+      };
+    });
+    syncBuiltinESMExports();
+    t.after(() => { mockPromisify.mock.restore(); syncBuiltinESMExports(); });
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { gitFetch: true } }));
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext();
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx);
+    await settle();
+    assert.equal(fetches.length, 1);
+    if (scenario === 'renderer restart') {
+      await runtime.commands.get('minfooter').handler('on', ctx);
+      assert.equal(fetches.length, 2);
+    } else if (scenario === 'directory round trip') {
+      const cwd = ctx.cwd;
+      ctx.cwd = join(cwd, 'other');
+      await emit(runtime, 'turn_end', ctx);
+      ctx.cwd = cwd;
+      await emit(runtime, 'turn_end', ctx);
+    } else {
+      ui.component.dispose();
+    }
+    await settle();
+    assert.equal(fetches[0].signal.aborted, true);
+    const before = queries;
+    fetches[0].resolve({ stdout: '', stderr: '' });
+    await settle();
+    assert.equal(queries, before, 'aborted fetch success cannot refresh the new lifecycle/directory');
+    if (scenario === 'renderer restart') {
+      assert.equal(fetches[1].signal.aborted, false, 'old completion cannot clear the replacement controller');
+      fetches[1].resolve({ stdout: '', stderr: '' });
+      await settle();
+      assert.equal(queries, before + 1, 'active successful fetch refreshes divergence');
+    }
+  });
+}
+
+for (const scenario of ['overlapping refresh', 'renderer restart', 'directory round trip', 'disposal']) {
+  test(`Git ignores stale query results after ${scenario}`, async (t) => {
+    const queries = [];
+    const realPromisify = util.promisify;
+    const mockPromisify = t.mock.method(util, 'promisify', (fn) => {
+      const original = realPromisify(fn);
+      if (fn.name !== 'execFile') return original;
+      return async (...args) => {
+        if (args[0] !== 'git') return original(...args);
+        return new Promise((resolve) => queries.push((counts) => resolve({ stdout: counts, stderr: '' })));
+      };
+    });
+    syncBuiltinESMExports();
+    t.after(() => { mockPromisify.mock.restore(); syncBuiltinESMExports(); });
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext({ renderTheme: { fg: (_color, s) => s, bold: (s) => `<bold>${s}</bold>` } });
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx);
+    queries[0]('0 0');
+    await settle();
+    assert.doesNotMatch(ui.component.render(160)[0], /<bold>/);
+
+    await emit(runtime, 'turn_end', ctx);
+    const stale = queries[1];
+    if (scenario === 'renderer restart') {
+      await runtime.commands.get('minfooter').handler('on', ctx);
+    } else if (scenario === 'directory round trip') {
+      const cwd = ctx.cwd;
+      ctx.cwd = join(cwd, 'other');
+      await emit(runtime, 'turn_end', ctx);
+      ctx.cwd = cwd;
+      await emit(runtime, 'turn_end', ctx);
+    } else if (scenario === 'disposal') {
+      ui.component.dispose();
+    } else {
+      await emit(runtime, 'turn_end', ctx);
+    }
+    if (scenario !== 'disposal') {
+      queries.at(-1)('2 0');
+      await settle();
+      assert.match(ui.component.render(160)[0], / main ↑2/);
+      assert.equal(ui.component.render(160)[0].includes('<bold>'), scenario !== 'directory round trip', 'new directory establishes a baseline');
+    }
+    stale('9 0');
+    // Resolve the intermediate directory query after returning to the original cwd too.
+    if (scenario === 'directory round trip') queries[2]('8 0');
+    await settle();
+    const line = ui.component.render(160)[0];
+    assert.doesNotMatch(line, /↑[89]/);
+    if (scenario === 'disposal') assert.doesNotMatch(line, /<bold>/);
+    else assert.match(line, / main ↑2/);
+  });
+}
 
 test('Git changes pulse the whole section for one second, restart on changes, and preserve colors', async (t) => {
   const realSetTimeout = setTimeout;
