@@ -1,6 +1,6 @@
 {
   "name": "pi-minimal-footer",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "An opinionated minimal Pi footer - one-line status bar showing subscription usage, path, status, model and context.",
   "keywords": [
     "footer",

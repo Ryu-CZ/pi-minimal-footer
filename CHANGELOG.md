@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-28
+
 ### Fixed
 
-- Apply freshly loaded context-display settings before rendering after enable or session restart
+- Apply changed context-display settings immediately when enabling the footer or starting a session
+- Prevent outdated Git counts and highlights after switching directories, replacing the footer, or disabling it
+- Correct documentation and previews to match current context formatting, usage-bar behavior, and settings
 
 ## [0.8.0] - 2026-10-28
 
@@ -277,7 +281,8 @@ First npm-ready release.
 
 - Project scaffold — `extensions/index.ts` with basic footer structure, `package.json` with pi extension manifest, `README.md`, `LICENSE` (MIT)
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.6.0...v0.7.0
