@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional percentage context display, e.g. `24.7%/500k`, enabled with `minFooter.contextAsPercentage`
+
+### Changed
+
+- Clearer default context counts, e.g. `0.78k/500k`, `1.0k/500k`, and `124k/500k`, with explicit units on both values
+
 ## [0.7.1] - 2026-10-16
 
 ### Fixed

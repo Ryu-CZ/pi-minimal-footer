@@ -36,6 +36,13 @@ Two cells give 6.25% steps; ten give 1.25%. Fill rounds to the nearest eighth-ce
 
 The bar and reset label have no intervening space. Reset formatting uses local clock time through 24 hours, remaining whole days/hours above 24 hours, and whole days above 10 days. Exactly 24 hours stays clock time; exactly 10 days is `↻10d0h`. Missing reset metadata leaves the bar visible without a label.
 
+## Context display contract
+
+- Default to tokens used / context window, with an explicit `k` suffix on both values. Never deduplicate units across the slash.
+- Always use kilos, including for million-token windows (`1000k`, not `1M`). Below 10k, use two significant digits where one-token resolution permits, capped at three decimal places in kilos: `0.001k`, `0.012k`, `0.11k`, `0.78k`, `0.99k`, `1.0k`, `9.0k`. At and above 10k, round to whole kilos: `10k`, `124k`, `1000k`. Zero is `0k`; rounding can promote `9.999k` to `10k`.
+- `minFooter.contextAsPercentage` defaults to `false`. Opting in replaces only the numerator with percentage used to one decimal place, e.g. `24.7%/500k`. Keep context distinct from the subscription usage bar.
+- Unknown token usage is `?/500k` in either mode; absent context usage is `?`. Never present unknown usage as zero.
+
 ## Git contract
 
 - Pi supplies the branch name. Query `git rev-list --left-right --count HEAD...@{upstream}` for `↑N` local-only and `↓N` upstream-only commits. Use local refs; no remote fetch by default.

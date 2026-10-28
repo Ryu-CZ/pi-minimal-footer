@@ -94,7 +94,7 @@ test('real AgentSession persists after message_end and footer refreshes from per
   const footer = component.render(120)[0];
   assert.equal(session.getContextUsage()?.tokens, after.tokens, 'turn_end did not change projected usage');
   assert.equal(after.contextWindow, 128000);
-  assert.match(footer, new RegExp(`${after.tokens}/128k`),
+  assert.match(footer, new RegExp(`${(after.tokens / 1000).toPrecision(2)}k/128k`),
     `footer displays real post-persistence context: before=${JSON.stringify(before)}, after=${JSON.stringify(after)}`);
 
   // A real compaction entry makes old assistant usage unknown until another response.
@@ -108,7 +108,7 @@ test('real AgentSession persists after message_end and footer refreshes from per
   await session._handleAgentEvent({ type: 'turn_end', message: nextAssistant, toolResults: [] });
   const recovered = session.getContextUsage();
   assert.ok(recovered.tokens > 0, 'post-compaction assistant restores known usage');
-  assert.match(component.render(120)[0], new RegExp(`${recovered.tokens}/128k`));
+  assert.match(component.render(120)[0], new RegExp(`${(recovered.tokens / 1000).toPrecision(2)}k/128k`));
 
   await session._extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
   component.dispose();

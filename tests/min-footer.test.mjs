@@ -106,6 +106,34 @@ async function installExtension(eventBus) {
 async function start(runtime, ctx, reason = 'startup') { await runtime.handlers.get('session_start')?.[0]?.({ reason }, ctx); }
 async function emit(runtime, name, ctx, event = {}) { await runtime.handlers.get(name)?.[0]?.(event, ctx); }
 
+test('context percentage is opt-in and preserves unknown usage', async () => {
+  for (const [setting, usage, expected] of [
+    [undefined, { tokens: 988, contextWindow: 500000 }, '0.99k/500k'],
+    ...[
+      [0, '0k'], [1, '0.001k'], [12, '0.012k'], [110, '0.11k'],
+      [780, '0.78k'], [990, '0.99k'], [1000, '1.0k'], [9000, '9.0k'],
+      [9999, '10k'], [10000, '10k'], [124000, '124k'],
+    ].map(([tokens, formatted]) => [false, { tokens, contextWindow: 1000000 }, `${formatted}/1000k`]),
+    [false, { tokens: 123500, contextWindow: 500000 }, '124k/500k'],
+    [true, { tokens: 123500, contextWindow: 500000 }, '24.7%/500k'],
+    [true, { tokens: 0, contextWindow: 500000 }, '0.0%/500k'],
+    [true, { tokens: null, contextWindow: 500000 }, '?/500k'],
+    [true, { tokens: 10, contextWindow: 0 }, '?/0'],
+    [true, undefined, '?'],
+  ]) {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { contextAsPercentage: setting } }));
+    const runtime = await installExtension();
+    const fixture = makeContext();
+    fixture.usage = usage;
+    try {
+      await start(runtime, fixture.ctx);
+      assert.ok(stripAnsi(fixture.ui.component.render(160)[0]).includes(` · ${expected}`));
+    } finally {
+      await emit(runtime, 'session_shutdown', fixture.ctx);
+    }
+  }
+});
+
 test('session hook leaves settings unchanged, respects ownership, and manual commands win', async () => {
   const settingsPath = join(agentDir, 'settings.json');
   const saved = JSON.stringify({ minFooter: { enabled: true } });
@@ -381,7 +409,7 @@ test('ordinary refresh requests render without reinstalling footer or adding bra
     await emit(runtime, event, ctx);
     const line = stripAnsi(component.render(120)[0]);
     assert.match(line, new RegExp(`updated-${i}`));
-    assert.match(line, new RegExp(`${Math.round(tokens / 1000)}/128k`));
+    assert.match(line, new RegExp(`${Math.round(tokens / 1000)}k/128k`));
   }
   assert.equal(factories, installs);
   assert.equal(p.subscribeCalls, 1);
@@ -446,7 +474,7 @@ test('invalid settings roots fall back to defaults and remain toggleable', async
     const runtime = await installExtension();
     const { ctx, ui } = makeContext();
     await start(runtime, ctx);
-    assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12\/128k/);
+    assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12k\/128k/);
     await runtime.commands.get('minfooter').handler('off', ctx);
     const settings = JSON.parse(await readFile(join(agentDir, 'settings.json'), 'utf8'));
     assert.equal(settings.minFooter.enabled, false);
@@ -578,7 +606,7 @@ test('two-cell compact bar preserves model and context before expansion', async 
   await start(runtime, ctx);
   await settle();
   try {
-    assert.match(stripAnsi(ui.component.render(35)[0]), /^ test-model · 12\/128k · \[⣶⠀\]↻\d\d:\d\d $/);
+    assert.match(stripAnsi(ui.component.render(36)[0]), /^ test-model · 12k\/128k · \[⣶⠀\]↻\d\d:\d\d $/);
   } finally {
     await emit(runtime, 'session_shutdown', ctx);
   }
@@ -614,7 +642,7 @@ test('usage joins the model section with spaces around the dot', async (t) => {
   const { ctx, ui } = codexContext();
   await start(runtime, ctx);
   await settle();
-  assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12\/128k · \[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12k\/128k · \[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]/);
   await emit(runtime, 'session_shutdown', ctx);
 });
 
@@ -623,7 +651,7 @@ test('extension statuses are individual power tabs without footer-added wrappers
   const { ctx, ui } = makeContext({ footerProvider: provider(new Map([['a', '🧠 Karpathy'], ['b', '🪽 Icarus'], ['empty', ' ']])) });
   await start(runtime, ctx);
   const line = stripAnsi(ui.component.render(160)[0]);
-  assert.ok(line.includes(' 🧠 Karpathy  🪽 Icarus  test-model · 12/128k'), line);
+  assert.ok(line.includes(' 🧠 Karpathy  🪽 Icarus  test-model · 12k/128k'), line);
   assert.doesNotMatch(line, /[()|]/);
   for (let width = 0; width <= 160; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
   await emit(runtime, 'session_shutdown', ctx);
@@ -648,8 +676,8 @@ test('compact model separators and optional plain-space status fallback', async 
     const { ctx, ui } = makeContext({ footerProvider: provider(new Map([['a', 'status']])) });
     await start(runtime, ctx);
     const line = stripAnsi(ui.component.render(120)[0]);
-    assert.ok(line.includes(`${powerlineSeparator ? '  ' : ' '}status${powerlineSeparator ? '  ' : ' '}test-model · 12/128k`));
-    assert.match(line, /test-model · 12\/128k/);
+    assert.ok(line.includes(`${powerlineSeparator ? '  ' : ' '}status${powerlineSeparator ? '  ' : ' '}test-model · 12k/128k`));
+    assert.match(line, /test-model · 12k\/128k/);
     assert.ok(line.includes(`project${powerlineSeparator ? '  ' : ' '} main`), line);
     const noBranch = ui.factory(ui.tui, theme, provider(new Map(), null));
     assert.doesNotMatch(stripAnsi(noBranch.render(120)[0]), //);
@@ -687,29 +715,29 @@ test('rendering fits pathological widths, ANSI/Unicode status, and preserves mod
   const wide = component.render(160)[0];
   assert.match(wide, /模型/);
   assert.match(wide, / main/);
-  assert.match(stripAnsi(wide), /^ ~\/project\/child   main + 技能 ✅  long status text  模型-red · 12\/128k $/);
-  assert.deepEqual(boldCalls.slice(-2), ['模型\u001b[31m-red\u001b[0m', '12/128k'], 'model/context retain bold theme styling');
+  assert.match(stripAnsi(wide), /^ ~\/project\/child   main + 技能 ✅  long status text  模型-red · 12k\/128k $/);
+  assert.deepEqual(boldCalls.slice(-2), ['模型\u001b[31m-red\u001b[0m', '12k/128k'], 'model/context retain bold theme styling');
   assert.match(wide, /\u001b\[1m/);
   assert.equal(visibleWidth(wide), 160, 'normal layout right-aligns and fills the available width');
-  const medium = stripAnsi(component.render(44)[0]);
+  const medium = stripAnsi(component.render(45)[0]);
   assert.doesNotMatch(medium, /long status text/, 'long statuses shorten before git');
   assert.match(medium, / 技能 .*\.\.\./);
   assert.match(medium, / main/);
   assert.match(medium, /模型/);
-  assert.equal(visibleWidth(medium), 44, 'status-drop layout remains right-aligned');
+  assert.equal(visibleWidth(medium), 45, 'status-drop layout remains right-aligned');
   assert.match(medium, /^  main + .*  模型/);
-  assert.match(medium, /12\/128k $/);
+  assert.match(medium, /12k\/128k $/);
   const narrow = stripAnsi(component.render(20)[0]);
   assert.doesNotMatch(narrow, /|技能|long status/, 'git drops before model/context');
   assert.match(narrow, /模型/);
   assert.equal(visibleWidth(narrow), 20, 'branch-drop layout remains right-aligned');
   assert.match(narrow, /^ +/);
-  assert.match(narrow, /12\/128k $/);
+  assert.match(narrow, /12k\/128k $/);
   assert.ok(visibleWidth(component.render(5)[0]) <= 5);
 });
 
 test('each disabled feature option omits only its segment', async () => {
-  for (const [key, forbidden] of [['showPath', '/project'], ['showSkills', '技能'], ['showGitBranch', 'main'], ['showModel', 'test-model'], ['showContext', '12/128k']]) {
+  for (const [key, forbidden] of [['showPath', '/project'], ['showSkills', '技能'], ['showGitBranch', 'main'], ['showModel', 'test-model'], ['showContext', '12k/128k']]) {
     await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, [key]: false } }));
     const runtime = await installExtension();
     const { ctx, ui } = makeContext({ cwd: join(homeDir, 'project'), footerProvider: provider() });
@@ -757,7 +785,7 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
   const lines = ui.component.render(120).map(stripAnsi);
   assert.equal(lines.length, 1);
   assert.match(lines[0], /project   main + 技能 ✅  test-model/);
-  assert.match(lines[0], /test-model · 12\/128k · \[⣿{3}⣤⠀{6}\]↻16:40 $/);
+  assert.match(lines[0], /test-model · 12k\/128k · \[⣿{3}⣤⠀{6}\]↻16:40 $/);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://chatgpt.com/backend-api/wham/usage');
   assert.equal(calls[0].init.headers['ChatGPT-Account-Id'], 'test-account');
@@ -771,7 +799,7 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
     assert.ok(visibleWidth(rendered[0]) <= width, `width=${width}`);
   }
   const narrow = stripAnsi(ui.component.render(32)[0]);
-  assert.match(narrow, /12\/128k · \[⣶⠀\]↻16:40 $/);
+  assert.match(narrow, /12k\/128k · \[⣶⠀\]↻16:40 $/);
   assert.doesNotMatch(narrow, /project|技能|/);
   assert.match(stripAnsi(ui.component.render(10)[0]), /↻16:40 $/);
 });

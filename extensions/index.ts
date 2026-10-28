@@ -1,7 +1,7 @@
 /**
  * Minimal footer — replaces pi's default footer with a clean status line:
  *
- *   ~/path/to/dir   main        status1  status2  sonnet · 12/128k · [⣿⣶⠀⠀⠀]↻16:40
+ *   ~/path/to/dir   main        status1  status2  sonnet · 12k/128k · [⣿⣶⠀⠀⠀]↻16:40
  *
  * Settings are persisted in the agent directory (usually ~/.pi/agent)
  * settings.json under "minFooter".
@@ -31,6 +31,7 @@ interface Settings {
     showPath?: boolean;
     showModel?: boolean;
     showContext?: boolean;
+    contextAsPercentage?: boolean;
     powerlineSeparator?: boolean;
     gitRefreshSeconds?: number;
     gitFetch?: boolean;
@@ -52,6 +53,7 @@ const DEFAULT_SETTINGS: FooterSettings = {
   showPath: true,
   showModel: true,
   showContext: true,
+  contextAsPercentage: false,
   powerlineSeparator: true,
   gitRefreshSeconds: 91,
   gitFetch: false,
@@ -111,9 +113,11 @@ function writeEnabled(v: boolean): void {
 
 function formatSize(n: number | null | undefined): string {
   if (n == null) return "?";
-  if (n >= 1_000_000) return `${Math.round(n / 1_000_000)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
-  return String(n);
+  const kilos = n / 1_000;
+  if (n === 0 || n >= 10_000) return `${Math.round(kilos)}k`;
+  const rounded = Number(kilos.toPrecision(2));
+  const decimals = Math.min(3, Math.max(0, 1 - Math.floor(Math.log10(rounded))));
+  return `${rounded.toFixed(decimals)}k`;
 }
 
 /** Abbreviate only an exact home match or a boundary-prefixed child path. */
@@ -166,7 +170,7 @@ async function updateGitSync(state: FooterState): Promise<boolean> {
   return changed;
 }
 
-function updateState(ctx: ExtensionContext, state: FooterState): void {
+function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSettings): void {
   const cwd = ctx.cwd ?? process.cwd();
   if (state.cwd !== cwd) {
     state.gitSync = "";
@@ -177,16 +181,11 @@ function updateState(ctx: ExtensionContext, state: FooterState): void {
   state.model = ctx.model?.id ?? "no-model";
   const usage = ctx.getContextUsage();
   if (usage) {
-    const fTokens = formatSize(usage.tokens);
+    const fTokens = config.contextAsPercentage === true
+      ? (usage.tokens == null || usage.contextWindow <= 0 ? "?" : `${(usage.tokens / usage.contextWindow * 100).toFixed(1)}%`)
+      : formatSize(usage.tokens);
     const fWindow = formatSize(usage.contextWindow);
-    const lastT = fTokens[fTokens.length - 1];
-    const lastW = fWindow[fWindow.length - 1];
-    // Deduplicate k/M suffix: show suffix only on denominator when both use the same unit
-    if ((lastT === "k" || lastT === "M") && lastT === lastW) {
-      state.context = `${fTokens.slice(0, -1)}/${fWindow}`;
-    } else {
-      state.context = `${fTokens}/${fWindow}`;
-    }
+    state.context = `${fTokens}/${fWindow}`;
   } else {
     state.context = "?";
   }
@@ -420,7 +419,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function refresh(ctx: ExtensionContext): void {
-    updateState(ctx, state);
+    updateState(ctx, state, config);
     refreshFooter();
   }
 
@@ -431,7 +430,7 @@ export default function (pi: ExtensionAPI) {
         !("enabled" in data) || typeof data.enabled !== "boolean") return;
     if (enabled === data.enabled && (!enabled || disposeFooter !== null)) return;
     enabled = data.enabled;
-    updateState(currentCtx, state);
+    updateState(currentCtx, state, config);
     install(currentCtx);
     refreshFooter();
   });
@@ -440,7 +439,7 @@ export default function (pi: ExtensionAPI) {
     currentCtx = ctx;
     enabled = readConfig().enabled !== false;
     usageLimits.stop();
-    updateState(ctx, state);
+    updateState(ctx, state, config);
     install(ctx);
     refreshFooter();
   });
@@ -493,7 +492,7 @@ export default function (pi: ExtensionAPI) {
       else if (args === "off") enabled = false;
       else enabled = !enabled;
       writeEnabled(enabled);
-      updateState(ctx, state);
+      updateState(ctx, state, config);
       install(ctx);
       refreshFooter();
       ctx.ui.notify(`Minimal footer ${enabled ? "enabled" : "disabled"}`, "info");

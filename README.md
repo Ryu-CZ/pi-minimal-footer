@@ -9,7 +9,7 @@
 
 An opinionated, compact, one-line status bar for [Pi](https://github.com/earendil-works/pi).
 
-![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42/200k · [⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h](media/preview.png)
+![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42k/200k · [⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h](media/preview.png)
 
 **Left**
 
@@ -20,7 +20,7 @@ An opinionated, compact, one-line status bar for [Pi](https://github.com/earendi
 
 - Extension statuses: ` 🧠 Karpathy  🪽 Icarus`
 - Model: `model`
-- Context usage: `42/200k`
+- Context usage: `42k/200k` (default), or `21.0%/200k` with `contextAsPercentage: true`
 - Subscription usage bar with reset time: `[⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h`
 
 ## Install
@@ -58,6 +58,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
     "showPath": true,
     "showModel": true,
     "showContext": true,
+    "contextAsPercentage": false,
     "powerlineSeparator": true,
     "gitRefreshSeconds": 91,
     "gitFetch": false,
@@ -82,7 +83,7 @@ Counts require a configured upstream. Unsynced branches use normal text color; s
 
 ### Context
 
-`42/200k` means tokens used / context window. `?` means Pi has not reported usage yet, including immediately after compaction.
+`42k/200k` means tokens used / context window. Set `"contextAsPercentage": true` under `minFooter` to show `21.0%/200k` instead. Unknown usage shows `?`.
 
 ### Subscription usage
 
