@@ -9,7 +9,7 @@ The [README](README.md) is the user manual. This document records current design
 ## Layout contract
 
 - Directory and Git branch form the left group, separated by ``.
-- Each extension status is its own `` tab. Preserve the supplied text; do not invent status labels, parentheses, or pipes.
+- Each extension status is its own `` tab. Preserve the supplied text except for replacing line breaks and tabs with spaces; do not invent status labels, parentheses, or pipes.
 - Model, context, and subscription usage form the rightmost group, separated by ` · `. Model identifies the running engine; context describes its usage; the usage bar stays anchored at the right edge.
 - Powerline separators are dim. `powerlineSeparator: false` replaces them with a single space. Font availability cannot be detected reliably.
 - Measure terminal columns with `visibleWidth`, not string length. Preserve ANSI styling and wide-character accounting when truncating.
@@ -18,7 +18,7 @@ The [README](README.md) is the user manual. This document records current design
 
 Reserve the usage bar and model/context before allocating location and statuses. Statuses and location may shorten or disappear; on sufficiently narrow terminals, model/context can also shorten or disappear.
 
-Lay out other fields with a two-cell usage bar first. Grow the bar only into leftover columns, up to ten cells—never truncate another field solely to enlarge it. At extreme widths, shrink to one cell, show only the reset label, or hide usage if neither can fit. Brackets keep an empty bar's edges visible and count toward its width, but not its cell cap.
+Lay out other fields with a two-cell usage bar first, or fewer if `maxUsageBarCells` is smaller. Grow the bar only into leftover columns, up to `maxUsageBarCells` (default ten)—never truncate another field solely to enlarge it. At extreme widths, shrink to one cell, show only the reset label, or hide usage if neither can fit. Brackets keep an empty bar's edges visible and count toward its width, but not its cell cap.
 
 Two cells give 6.25% steps; ten give 1.25%. Fill rounds to the nearest eighth-cell step. Only the final partially filled cell uses an intermediate shade:
 
@@ -67,7 +67,7 @@ Display only the selected provider's shortest applicable window. Subscription us
 | Kimi Coding (`kimi-coding`) | Shortest available window; accepts used or remaining counts and week/month durations |
 | OpenCode Go (`opencode-go`) | Shortest rolling/weekly/monthly window |
 
-Reuse Pi's selected-provider credentials. Copilot uses the GitHub login token from Pi's configured agent directory or `COPILOT_GITHUB_TOKEN`. Pi 1.0.3 does not include Gemini CLI in its built-in model catalog. Do not poll custom proxy endpoints or make model requests to obtain usage.
+Reuse Pi's selected-provider credentials. Copilot uses the saved OAuth GitHub login token when applicable; otherwise it uses the credentials resolved by Pi, which can include `COPILOT_GITHUB_TOKEN`. Ambient environment tokens do not override Pi's resolved credentials. Pi 1.0.3 does not include Gemini CLI in its built-in model catalog. Do not poll custom proxy endpoints or make model requests to obtain usage.
 
 ### Refresh and failure behavior
 
@@ -88,7 +88,7 @@ The comparison with [mtrojnar/pi-usage](https://github.com/mtrojnar/pi-usage) in
 
 ## Local development
 
-Requires Node.js >=22.19.0. Local dependencies pin Pi 1.0.3; compatibility CI tests Pi 1.0.3 and 1.1.0 on Node.js 22.19.0. Provider requests are mocked. These are tested versions, not a guarantee for every intervening or future release.
+Requires Node.js >=22.19.0. Local dependencies pin Pi 1.0.3; compatibility CI is configured to test Pi 1.0.3, 1.1.0, and 1.3.0 on Node.js 22.19.0. Provider requests are mocked. These are tested versions, not a guarantee for every intervening or future release.
 
 ```bash
 npm ci
@@ -134,7 +134,7 @@ Emit after this extension's `session_start` handler has run; events before start
 
 The latest explicit action wins: `/minfooter on/off` changes the current footer and saves the preference, while this event changes only the current session. Normal refreshes never undo the choice. A new session or extension reload starts from the saved preference.
 
-Disabling restores Pi's default footer only if we still own the active footer; otherwise it leaves the active footer untouched. Enabling explicitly installs our footer and may replace another extension's footer; repeated enables while we own it do nothing. Neither action restores a previous extension's footer. A coordinating extension must choose the active footer—there is no priority stack or automatic reactivation.
+Disabling restores Pi's default footer only if we still own the active footer; otherwise it leaves the active footer untouched. Enabling explicitly installs our footer and may replace another extension's footer. Repeated enable events while we own it do nothing; `/minfooter on` reloads settings and reinstalls the footer. Neither action restores a previous extension's footer. A coordinating extension must choose the active footer—there is no priority stack or automatic reactivation.
 
 ### Code map
 

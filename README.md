@@ -9,7 +9,7 @@
 
 An opinionated, compact, one-line status bar for [Pi](https://github.com/earendil-works/pi).
 
-![Footer preview: ~/git/project   main        🧠 Karpathy  🪽 Icarus  model · 42k/200k · [⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h](media/preview.png)
+![Footer preview: ~/git/project   main ↑2 · 🧠 Karpathy · 🪽 Icarus · gpt-6-sol · 42k/200k · subscription usage with reset time](media/preview.png)
 
 **Left**
 
@@ -83,7 +83,7 @@ Counts require a configured upstream. Unsynced branches use normal text color; s
 
 ### Context
 
-`42k/200k` means tokens used / context window. Set `"contextAsPercentage": true` under `minFooter` to show `21.0%/200k` instead. Unknown usage shows `?`.
+`42k/200k` means tokens used / context window. Set `"contextAsPercentage": true` under `minFooter` to show `21.0%/200k` instead. Unknown token usage shows `?/200k` when the window is known, or `?` when context information is unavailable.
 
 ### Subscription usage
 
@@ -91,7 +91,7 @@ Counts require a configured upstream. Unsynced branches use normal text color; s
 
 - **Bar:** expands into spare space, using 2–10 cells by default, capped by `maxUsageBarCells`. Smaller caps and very narrow terminals may show fewer cells or only the reset label.
 - **Colors:** green below 85%, amber from 85%, red from 92%.
-- **Cached data:** dim after a refresh failure.
+- **Cached data:** dim after a refresh failure or when its reset time has passed.
 - Reset: local `↻HH:mm` through 24 hours; whole days/hours above 24 hours (`↻1d8h`); whole days above 10 days (`↻12d`). Remaining durations round down. No reset reported means bar only.
 - Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 - Virtual/routed models show model and context usage, but no subscription bar.
