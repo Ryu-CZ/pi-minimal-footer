@@ -31,8 +31,6 @@ Choose one npm name (they contain the same extension; do not install both):
 
 ```bash
 pi install npm:pi-minimal-footer
-# or
-pi install npm:@ryu-cz/pi-minimal-footer
 ```
 
 The scoped package is an official mirror, not a separate extension.
