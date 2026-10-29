@@ -11,6 +11,9 @@ interface Settings {
     showPath?: boolean;
     showModel?: boolean;
     showContext?: boolean;
+    showProvider?: boolean;
+    showThinking?: boolean;
+    showUsage?: boolean;
     contextAsPercentage?: boolean;
     powerlineSeparator?: boolean;
     gitRefreshSeconds?: number;
@@ -32,6 +35,9 @@ const DEFAULT_SETTINGS = {
   showPath: true,
   showModel: true,
   showContext: true,
+  showProvider: false,
+  showThinking: false,
+  showUsage: true,
   contextAsPercentage: false,
   powerlineSeparator: true,
   gitRefreshSeconds: 91,

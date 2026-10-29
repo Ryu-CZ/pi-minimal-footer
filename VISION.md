@@ -16,9 +16,9 @@ The [README](README.md) is the user manual. This document records current design
 
 ### Space allocation
 
-Reserve the usage bar and model/context before allocating location and statuses. Statuses and location may shorten or disappear; on sufficiently narrow terminals, model/context can also shorten or disappear.
+Reserve the usage bar and model/context before allocating location and statuses. Statuses and location may shorten or disappear; on sufficiently narrow terminals, model/context can also shorten or disappear. The model field is one protected unit: an optional `provider/` prefix, the bold model id, and an optional thinking level colored by Pi's `thinking*` theme tokens are truncated together, so the field never splits into separate segments.
 
-Lay out other fields with a two-cell usage bar first, or fewer if `maxUsageBarCells` is smaller. Grow the bar only into leftover columns, up to `maxUsageBarCells` (default ten)—never truncate another field solely to enlarge it. At extreme widths, shrink to one cell, show only the reset label, or hide usage if neither can fit. Brackets keep an empty bar's edges visible and count toward its width, but not its cell cap.
+Lay out other fields with a two-cell usage bar first, or fewer if `maxUsageBarCells` is smaller. Grow the bar only into leftover columns, up to `maxUsageBarCells` (default ten)—never truncate another field solely to enlarge it. At extreme widths, shrink to one cell, show only the reset label, or hide usage if neither can fit. Brackets keep an empty bar's edges visible and count toward its width, but not its cell cap. With `showUsage: false` no bar is reserved at all, and the usage owner is stopped before any credential lookup, request, or timer is created.
 
 Two cells give 6.25% steps; ten give 1.25%. Fill rounds to the nearest eighth-cell step. Only the final partially filled cell uses an intermediate shade:
 

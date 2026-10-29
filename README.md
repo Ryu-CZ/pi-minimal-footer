@@ -56,6 +56,9 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
     "showPath": true,
     "showModel": true,
     "showContext": true,
+    "showProvider": false,
+    "showThinking": false,
+    "showUsage": true,
     "contextAsPercentage": false,
     "powerlineSeparator": true,
     "gitRefreshSeconds": 91,
@@ -66,7 +69,10 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 }
 ```
 
+- `showProvider` prefixes the model with its provider id, e.g. `opencode-go/deepseek-v4.1-flash`; default `false`.
+- `showThinking` appends the thinking level for reasoning models, e.g. `deepseek-v4.1-flash high` or `thinking off`, in Pi's matching `thinking*` theme color; default `false`.
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
+- `showUsage` enables this footer's own provider usage queries and the subscription usage bar; set it to `false` when another extension already publishes quota; default `true`.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
 - `gitRefreshSeconds`: local refresh interval; `1`–`2147483` seconds; default `91`.
 - `gitFetch`: background fetch on startup, then roughly 5 minutes after each attempt completes; failures are silent; default `false`.

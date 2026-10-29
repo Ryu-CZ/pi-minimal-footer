@@ -11,7 +11,7 @@
  *   /minfooter on|off   — force state
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { sep } from "node:path";
 import { homedir } from "node:os";
 import { BASE_BAR_CELLS, MAX_BAR_CELLS, UsageLimits } from "./lib/usage-limits.js";
@@ -46,16 +46,45 @@ function abbreviateHome(p: string, home: string): string {
 
 interface FooterState {
   cwd: string;
+  provider: string;
   model: string;
+  thinking: string;
   context: string;
   contextColor: "dim" | "warning" | "error";
 }
 
-function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSettings, git: GitStatus, settings: ReturnType<ExtensionAPI["getSettings"]>): void {
+/** Pi ships one theme color per thinking level. */
+const THINKING_COLORS = {
+  off: "thinkingOff",
+  minimal: "thinkingMinimal",
+  low: "thinkingLow",
+  medium: "thinkingMedium",
+  high: "thinkingHigh",
+  xhigh: "thinkingXhigh",
+  max: "thinkingMax",
+} as const;
+
+/** Provider prefix, model id, and thinking level share one protected model field. */
+function renderModel(theme: Theme, state: FooterState, config: FooterSettings): string {
+  if (!config.showModel) return "";
+  const provider = config.showProvider && state.provider ? theme.fg("dim", `${state.provider}/`) : "";
+  // "off" keeps Pi's own wording while still taking that level's color.
+  const level = state.thinking;
+  const label = level === "off" ? "thinking off" : level;
+  const thinking = config.showThinking && label
+    ? theme.fg(THINKING_COLORS[level as keyof typeof THINKING_COLORS] ?? "dim", ` ${label}`)
+    : "";
+  return provider + theme.bold(state.model) + thinking;
+}
+
+function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSettings, git: GitStatus, settings: ReturnType<ExtensionAPI["getSettings"]>, thinkingLevel: string): void {
   const cwd = ctx.cwd ?? process.cwd();
   state.cwd = cwd;
   git.setCwd(cwd);
+  state.provider = ctx.model?.provider ?? "";
   state.model = ctx.model?.id ?? "no-model";
+  // Pi reports a level for every model; only reasoning models show one.
+  state.thinking = ctx.model?.reasoning === true ? thinkingLevel : "";
   const usage = ctx.getContextUsage();
   state.contextColor = "dim";
   if (usage) {
@@ -84,7 +113,7 @@ export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
   let currentCtx: ExtensionContext | undefined;
-  const state: FooterState = { cwd: process.cwd(), model: "no-model", context: "?", contextColor: "dim" };
+  const state: FooterState = { cwd: process.cwd(), provider: "", model: "no-model", thinking: "", context: "?", contextColor: "dim" };
   const git = new GitStatus(state.cwd);
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
@@ -93,11 +122,17 @@ export default function (pi: ExtensionAPI) {
   function selectUsage(ctx: ExtensionContext): void {
     // The preference may remain enabled after another extension replaces our footer.
     // Poll only while we own a live renderer, or model changes can resurrect hidden requests.
-    usageLimits.select(ctx, enabled && disposeFooter !== null);
+    usageLimits.select(ctx, enabled && config.showUsage !== false && disposeFooter !== null);
+  }
+
+  // Only read the level when it is displayed: the getter is a host call, and
+  // keeping it behind the setting leaves non-users untouched.
+  function readThinkingLevel(): string {
+    return config.showThinking ? pi.getThinkingLevel() : "";
   }
 
   function install(ctx: ExtensionContext): void {
-    updateState(ctx, state, config, git, pi.getSettings());
+    updateState(ctx, state, config, git, pi.getSettings(), readThinkingLevel());
     if (ctx.mode !== "tui") { usageLimits.stop(); return; }
 
     if (!enabled) {
@@ -149,7 +184,7 @@ export default function (pi: ExtensionAPI) {
             statuses: statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
             // Pulse weight independently of the existing divergence color.
             branch: branchText ? theme.fg(git.sync ? "text" : "dim", gitText) : "",
-            model: config.showModel ? theme.bold(state.model) : "",
+            model: renderModel(theme, state, config),
             context: config.showContext ? theme.fg(state.contextColor, theme.bold(state.context)) : "",
             usage: (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
             statusSeparator,
@@ -173,7 +208,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function refresh(ctx: ExtensionContext): void {
-    updateState(ctx, state, config, git, pi.getSettings());
+    updateState(ctx, state, config, git, pi.getSettings(), readThinkingLevel());
     refreshFooter();
   }
 
@@ -204,6 +239,10 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("model_select", async (_event, ctx) => {
     selectUsage(ctx);
+    refresh(ctx);
+  });
+
+  pi.on("thinking_level_select", async (_event, ctx) => {
     refresh(ctx);
   });
 
