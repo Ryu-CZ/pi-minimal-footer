@@ -58,6 +58,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
     "showPath": true,
     "showModel": true,
     "showContext": true,
+    "showUsage": true,
     "contextAsPercentage": false,
     "powerlineSeparator": true,
     "gitRefreshSeconds": 91,
@@ -69,6 +70,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 ```
 
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
+- `showUsage` controls this footer's own provider usage queries. Set it to `false` to remove the subscription usage bar and stop the background requests entirely, for example when another extension already publishes quota through `ctx.ui.setStatus()`. Default `true`.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
 - `gitRefreshSeconds`: local refresh interval; `1`–`2147483` seconds; default `91`.
 - `gitFetch`: background fetch on startup, then roughly 5 minutes after each attempt completes; failures are silent; default `false`.
@@ -97,6 +99,7 @@ The whole context label keeps its normal dim color below 85% of Pi’s compactio
 - Reset: local `↻HH:mm` through 24 hours; whole days/hours above 24 hours (`↻1d8h`); whole days above 10 days (`↻12d`). Remaining durations round down. No reset reported means bar only.
 - Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 - Virtual/routed models show model and context usage, but no subscription bar.
+- Set `"showUsage": false` under `minFooter` to disable these queries and the bar. No credential lookup, request, or timer runs while it is off, so a footer that only needs path, Git, statuses, model, and context makes no network calls of its own. Toggle it back with `true` and `/reload` (or `/minfooter on`).
 
 #### Adapters
 

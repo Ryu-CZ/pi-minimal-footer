@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `minFooter.showUsage` (default `true`): set it to `false` to keep the footer from querying provider usage endpoints, which removes the subscription usage bar and its background requests when another extension already reports quota
 - Color the whole context label yellowish at 85% and red at 92% of Pi’s configured compaction trigger, honoring per-model reserve overrides
 
 ## [0.8.1] - 2026-10-28

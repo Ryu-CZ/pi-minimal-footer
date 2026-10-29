@@ -777,3 +777,35 @@ test('Kimi accepts the actual Pi OAuth bearer-header contract', async (t) => {
   assert.equal(calls[0].init.headers.Authorization, 'Bearer kimi-oauth-access');
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
 });
+
+test('showUsage: false skips credential lookups, requests, timers, and the usage bar', async (t) => {
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showUsage: false } }));
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+  const calls = fakeUsageFetch(t);
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  let lookups = 0;
+  const resolveCredentials = ctx.modelRegistry.getApiKeyAndHeaders;
+  ctx.modelRegistry.getApiKeyAndHeaders = async (...args) => { lookups += 1; return resolveCredentials(...args); };
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx);
+  await settle();
+  assert.equal(lookups, 0, 'startup must not resolve usage credentials while the bar is off');
+  assert.equal(calls.length, 0, 'startup must not fetch usage while the bar is off');
+  const line = stripAnsi(ui.component.render(120)[0]);
+  assert.equal(hasUsageBar(ui), false, 'no usage bar is rendered');
+  assert.ok(line.includes('test-model'), 'the rest of the footer still renders');
+  t.mock.timers.tick(240000);
+  await settle();
+  assert.equal(calls.length, 0, 'no polling timer is armed');
+  ctx.model.id = 'other-codex-model';
+  await emit(runtime, 'model_select', ctx);
+  await settle();
+  assert.equal(calls.length, 0, 'model selection cannot restart requests');
+
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showUsage: true } }));
+  await runtime.commands.get('minfooter').handler('on', ctx);
+  await settle();
+  assert.equal(calls.length, 1, 're-enabling restores the query');
+  assert.ok(hasUsageBar(ui), 'the bar returns with the setting');
+});

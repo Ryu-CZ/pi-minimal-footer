@@ -93,7 +93,7 @@ export default function (pi: ExtensionAPI) {
   function selectUsage(ctx: ExtensionContext): void {
     // The preference may remain enabled after another extension replaces our footer.
     // Poll only while we own a live renderer, or model changes can resurrect hidden requests.
-    usageLimits.select(ctx, enabled && disposeFooter !== null);
+    usageLimits.select(ctx, enabled && config.showUsage !== false && disposeFooter !== null);
   }
 
   function install(ctx: ExtensionContext): void {
@@ -151,7 +151,9 @@ export default function (pi: ExtensionAPI) {
             branch: branchText ? theme.fg(git.sync ? "text" : "dim", gitText) : "",
             model: config.showModel ? theme.bold(state.model) : "",
             context: config.showContext ? theme.fg(state.contextColor, theme.bold(state.context)) : "",
-            usage: (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
+            usage: config.showUsage === false
+              ? () => null
+              : (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
             statusSeparator,
             locationSeparator: config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
             maxUsageBarCells: config.maxUsageBarCells ?? MAX_BAR_CELLS,
