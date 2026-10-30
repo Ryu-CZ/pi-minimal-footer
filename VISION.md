@@ -44,6 +44,8 @@ The bar and reset label have no intervening space. Reset formatting uses local c
 - Reload settings at installation boundaries (enable and session start) before deriving footer state, so the first render uses the effective configuration. Ordinary refreshes use the cached configuration and must not reload settings.
 - Unknown token usage is `?/500k` in either mode; absent context usage is `?`. Never present unknown usage as zero.
 
+Context colors use Pi's effective compaction trigger (`contextWindow - reserveTokens`), including exact `provider/modelId` reserve overrides and the default reserve of 16,384 tokens. The whole label is dim below 85% of that trigger, warning at 85%, and error at 92%, in either display mode—even when auto-compaction is disabled. Unknown usage or a non-positive trigger stays dim.
+
 ## Git contract
 
 - Pi supplies the branch name. Query `git rev-list --left-right --count HEAD...@{upstream}` for `↑N` local-only and `↓N` upstream-only commits. Use local refs; no remote fetch by default.

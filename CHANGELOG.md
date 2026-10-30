@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Clarify context versus subscription usage in previews, add a customized footer example, and correct outdated installation guidance.
+
 ## [0.9.0] - 2026-10-30
 
 ### Added

@@ -9,7 +9,7 @@
 
 An opinionated, compact, one-line status bar for [Pi](https://github.com/earendil-works/pi).
 
-![Footer preview: ~/git/project   main ↑2 · 🧠 Karpathy · 🪽 Icarus · gpt-6-sol · 42k/200k · subscription usage with reset time](media/preview.png)
+![Footer preview: ~/git/project   main ↑2 · 🧠 Karpathy · 🪽 Icarus · gpt-6-sol · 12k/256k · subscription usage bar at 44% with reset time](media/preview.png)
 
 **Left**
 
@@ -20,20 +20,16 @@ An opinionated, compact, one-line status bar for [Pi](https://github.com/earendi
 
 - Extension statuses: ` 🧠 Karpathy  🪽 Icarus`
 - Model: `model`
-- Context usage: `42k/200k` (default), or `21.0%/200k` with `contextAsPercentage: true`
-- Subscription usage bar with reset time: `[⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h`
+- Context usage: `12k/256k` (default), or `4.7%/256k` with `contextAsPercentage: true`
+- Subscription usage bar with reset time: `[⣿⣿⣿⣿⣄⠀⠀⠀⠀⠀]↻1d8h`
 
 ## Install
 
 Requires Node.js >=22.19.0. Interactive terminal UI only.
 
-Choose one npm name (they contain the same extension; do not install both):
-
 ```bash
 pi install npm:pi-minimal-footer
 ```
-
-The scoped package is an official mirror, not a separate extension.
 
 ## Commands
 
@@ -70,7 +66,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 ```
 
 - `showProvider` prefixes the model with its provider id, e.g. `opencode-go/deepseek-v4.1-flash`; default `false`.
-- `showThinking` appends the thinking level for reasoning models, e.g. `deepseek-v4.1-flash high` or `thinking off`, in Pi's matching `thinking*` theme color; default `false`.
+- `showThinking` appends the thinking level for reasoning models, e.g. `deepseek-v4.1-flash high` or `thinking off`, in the theme's thinking-level color; default `false`.
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
 - `showUsage` enables this footer's own provider usage queries and the subscription usage bar; set it to `false` when another extension already publishes quota; default `true`.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
@@ -78,6 +74,10 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 - `gitFetch`: background fetch on startup, then roughly 5 minutes after each attempt completes; failures are silent; default `false`.
 - `gitFetchTimeoutSeconds`: fetch timeout; `1`–`2147483` seconds; default `17`. Invalid timer settings use their defaults.
 - `maxUsageBarCells` caps the Braille bar length (excluding brackets and reset time). Use a positive integer, e.g. `4` for a compact bar; invalid values fall back to `10`.
+
+With `showProvider` and `showThinking` enabled:
+
+![Customized footer with provider prefix and high thinking level, 12k/256k context, and 44% subscription usage](media/customized-preview.png)
 
 ## Reading the footer
 
@@ -87,13 +87,13 @@ Counts require a configured upstream. Unsynced branches use normal text color; s
 
 ### Context
 
-`42k/200k` means tokens used / context window. Set `"contextAsPercentage": true` under `minFooter` to show `21.0%/200k` instead. Unknown token usage shows `?/200k` when the window is known, or `?` when context information is unavailable.
+`12k/256k` means tokens used / context window. Set `"contextAsPercentage": true` to show `4.7%/256k` instead. Unknown usage shows `?/256k` when the window is known, or `?` otherwise.
 
-The whole context label keeps its normal dim color below 85% of Pi’s compaction trigger (`contextWindow - reserveTokens`), turns yellowish (`warning`) at 85%, and red (`error`) at 92%. It uses Pi’s effective compaction settings, including exact `provider/modelId` overrides, with a default reserve of 16,384 tokens. Colors apply in both display modes, even when auto-compaction is disabled. Unknown usage or a non-positive trigger keeps the normal color.
+The context label turns yellow at 85% and red at 92% of Pi's configured compaction threshold, in either display mode.
 
 ### Subscription usage
 
-`[⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀]↻1d8h` shows **subscription allowance used**, not context usage.
+`[⣿⣿⣿⣿⣄⠀⠀⠀⠀⠀]↻1d8h` shows **subscription allowance used** (44% here), not context usage.
 
 - **Bar:** expands into spare space, using 2–10 cells by default, capped by `maxUsageBarCells`. Smaller caps and very narrow terminals may show fewer cells or only the reset label.
 - **Colors:** green below 85%, amber from 85%, red from 92%.
