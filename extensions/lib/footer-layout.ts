@@ -21,15 +21,17 @@ export interface LineParts {
   statusSeparator: string;
   locationSeparator: string;
   maxUsageBarCells: number;
+  borderColor?: ((text: string) => string) | undefined;
 }
 
 export function buildLine({
   width, path, statuses, branch, model, context, usage,
-  statusSeparator, locationSeparator, maxUsageBarCells,
+  statusSeparator, locationSeparator, maxUsageBarCells, borderColor,
 }: LineParts): string {
   if (width <= 0) return "";
-  if (width <= 2) return " ".repeat(width);
-  width -= 2;
+  const edgeWidth = borderColor ? 4 : 2;
+  if (width <= edgeWidth) return borderColor ? borderColor("─".repeat(width)) : " ".repeat(width);
+  width -= edgeWidth;
   let core = [model, context].filter(Boolean).join(MODEL_GAP);
   // Budget the compact bar first; its expanded size must not drive truncation decisions.
   const usageBar = usage(width, Math.min(BASE_BAR_CELLS, maxUsageBarCells)) ?? "";
@@ -72,5 +74,12 @@ export function buildLine({
     const expandedCore = [core, expandedUsageBar].filter(Boolean).join(USAGE_GAP);
     right = [fittedStatuses, expandedCore].filter(Boolean).join(statusSeparator);
   }
-  return " " + left + " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right))) + right + " ";
+  const gapWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right));
+  if (!borderColor) return " " + left + " ".repeat(gapWidth) + right + " ";
+  if (!left && !right) return borderColor("─".repeat(width + edgeWidth));
+  // Only structural padding becomes a rule; spaces inside supplied text remain untouched.
+  const beforeRule = left && gapWidth ? " " : "";
+  const afterRule = right && gapWidth > beforeRule.length ? " " : "";
+  const rule = borderColor("─".repeat(Math.max(0, gapWidth - beforeRule.length - afterRule.length)));
+  return borderColor("─") + " " + left + beforeRule + rule + afterRule + right + " " + borderColor("─");
 }

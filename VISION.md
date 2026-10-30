@@ -18,7 +18,7 @@ The [README](README.md) is the user manual. This document records current design
 
 Reserve the usage bar and model/context before allocating location and statuses. Statuses and location may shorten or disappear; on sufficiently narrow terminals, model/context can also shorten or disappear. The model field is one protected unit: an optional `provider/` prefix, the bold model id, and an optional thinking level colored by Pi's `thinking*` theme tokens are truncated together, so the field never splits into separate segments.
 
-Lay out other fields with a two-cell usage bar first, or fewer if `maxUsageBarCells` is smaller. Grow the bar only into leftover columns, up to `maxUsageBarCells` (default ten)—never truncate another field solely to enlarge it. At extreme widths, shrink to one cell, show only the reset label, or hide usage if neither can fit. Brackets keep an empty bar's edges visible and count toward its width, but not its cell cap. With `showUsage: false` no bar is reserved at all, and the usage owner is stopped before any credential lookup, request, or timer is created.
+Lay out other fields with a two-cell usage bar first, or fewer if `maxUsageBarCells` is smaller. Grow the bar only into leftover columns, up to `maxUsageBarCells` (default ten)—never truncate another field solely to enlarge it. At extreme widths, shrink to one cell, show only the reset label, or hide usage if neither can fit. Brackets keep an empty bar's edges visible and count toward its width, but not its cell cap. When effective usage is disabled (`showUsage: false`, unless overridden by a control event), reserve no bar space and stop the usage owner before any credential lookup, request, or timer is created.
 
 Two cells give 6.25% steps; ten give 1.25%. Fill rounds to the nearest eighth-cell step. Only the final partially filled cell uses an intermediate shade:
 
@@ -36,12 +36,23 @@ Two cells give 6.25% steps; ten give 1.25%. Fill rounds to the nearest eighth-ce
 
 The bar and reset label have no intervening space. Reset formatting uses local clock time through 24 hours, remaining whole days/hours above 24 hours, and whole days above 10 days. Exactly 24 hours stays clock time; exactly 10 days is `↻10d0h`. Missing reset metadata leaves the bar visible without a label.
 
+## Compact editor contract
+
+`minFooter.compactEditor` is experimental, opt-in and defaults to `false`. `CompactEditor` overrides only Pi's protected `renderBottomBorder`; input handling, completion and full editor rendering remain inherited. Return the original border when lines are hidden below the viewport or the overlay is inactive/empty. Otherwise apply the shared formatted line with ANSI/cell-safe truncation, retaining any uncovered border columns. `embedWorkingStatus: true` retains Pi's working indicator in the top border.
+
+Compact formatting reserves `─ ` / ` ─` edge caps and fills structural padding between groups with rules in the editor's current `borderColor`. Spaces inside supplied text stay unchanged. At widths of four columns or fewer, render only the rule. Normal formatting retains its space padding.
+
+The `setFooter` factory remains the lifecycle, theme and footer-data owner. Its shared `renderLine` callback supplies both presentations. Render zero footer rows only while the compact factory actually owns the editor; otherwise render the normal one-line footer. Disposal deactivates the callback so retained editor instances return their original border. Git and usage work remain owned by the footer, not by the editor.
+
+Claim only the default editor (`getEditorComponent() === undefined`). Identity-check ownership before restoring it; never clear a competing factory. A later takeover falls back on the next footer render without reasserting ownership. Retain the compact factory across footer reinstallation to avoid redundant swaps. Off, shutdown, settings changes and external footer replacement release owned resources idempotently; disposal never calls `setFooter` recursively.
+
+Before every owned install or restore, capture expanded `ctx.ui.getEditorText()`. After `setEditorComponent`, restore it through `setEditorText` if needed: the host's ordinary swap copies marker text without its private collapsed-paste store. Text must survive, including expanded paste contents. Paste collapse, cursor position and undo/history state are not preserved across actual swaps; this is an explicit opt-in limitation, not permission to lose draft content.
+
 ## Context display contract
 
 - Default to tokens used / context window, with an explicit `k` suffix on both values. Never deduplicate units across the slash.
 - Always use kilos, including for million-token windows (`1000k`, not `1M`). Below 10k, use two significant digits where one-token resolution permits, capped at three decimal places in kilos: `0.001k`, `0.012k`, `0.11k`, `0.78k`, `0.99k`, `1.0k`, `9.0k`. At and above 10k, round to whole kilos: `10k`, `124k`, `1000k`. Zero is `0k`; rounding can promote `9.999k` to `10k`.
 - `minFooter.contextAsPercentage` defaults to `false`. Opting in replaces only the numerator with percentage used to one decimal place, e.g. `24.7%/500k`. Keep context distinct from the subscription usage bar.
-- Reload settings at installation boundaries (enable and session start) before deriving footer state, so the first render uses the effective configuration. Ordinary refreshes use the cached configuration and must not reload settings.
 - Unknown token usage is `?/500k` in either mode; absent context usage is `?`. Never present unknown usage as zero.
 
 Context colors use Pi's effective compaction trigger (`contextWindow - reserveTokens`), including exact `provider/modelId` reserve overrides and the default reserve of 16,384 tokens. The whole label is dim below 85% of that trigger, warning at 85%, and error at 92%, in either display mode—even when auto-compaction is disabled. Unknown usage or a non-positive trigger stays dim.
@@ -86,11 +97,9 @@ Reuse Pi's selected-provider credentials. Copilot uses the saved OAuth GitHub lo
 
 Parsing and lifecycle behavior have automated coverage. Authenticated provider endpoints have **not** been tested live. OpenCode Go's bearer-token response format and Copilot's public endpoint/enterprise compatibility remain unverified.
 
-The comparison with [mtrojnar/pi-usage](https://github.com/mtrojnar/pi-usage) informed timeout, validation, and partial-update handling; its OpenCode implementation uses an authenticated dashboard rather than this adapter's bearer-token endpoint.
-
 ## Local development
 
-Requires Node.js >=22.19.0. Local dependencies pin Pi 1.0.3; compatibility CI is configured to test Pi 1.0.3, 1.1.0, and 1.3.0 on Node.js 22.19.0. Provider requests are mocked. These are tested versions, not a guarantee for every intervening or future release.
+Requires Node.js >=22.19.0. Local dependencies pin Pi 1.0.3; compatibility CI targets Pi 1.0.3, 1.1.0, and 1.3.0 on Node.js 22.19.0. The compact editor suite has also passed against Pi 1.4.0 locally. Provider requests are mocked; version coverage does not guarantee compatibility with every intervening or future release.
 
 ```bash
 npm ci
@@ -124,6 +133,8 @@ Use a unique key. Pi requests a redraw when statuses change; no footer-specific 
 Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` replaces this footer. Usage requests, new Git queries, and footer-owned timers stop on disposal; an in-flight Git query may complete, but lifecycle state refreshes alone never start one.
 
 #### Session-only footer control
+
+Both control events apply to normal and compact editor layouts. They do not change `compactEditor` or bypass editor-ownership safeguards.
 
 Extensions can temporarily override footer visibility without changing the user's saved setting:
 
@@ -159,12 +170,15 @@ pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: null });  // re
 ### Code map
 
 - `extensions/index.ts`: Pi events/commands, footer ownership, model/context formatting, theme application, and module wiring.
+- `extensions/lib/compact-editor.ts`: bottom-border overlay, custom-editor ownership, and expanded-draft preservation during editor swaps.
 - `extensions/lib/footer-settings.ts`: defaults, validation, and settings persistence; preserves unrelated preferences.
 - `extensions/lib/footer-layout.ts`: width allocation and truncation of supplied segments, independent of Pi lifecycle and theme selection.
 - `extensions/lib/git-status.ts`: Git divergence state, stale-result protection, highlight pulses, local polling, and optional fetch/cancellation. The active renderer starts/stops this lifecycle; superseded renderer disposal cannot stop its replacement.
 - `extensions/lib/usage-limits.ts`: usage refresh, cache, cancellation, and bar/reset rendering.
 - `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and named private provider parsers. `parseUsageWindows` gates supported endpoints, dispatches parsing with an explicit snapshot, and centrally distinguishes valid windows, absence, and malformed responses.
 - `tests/min-footer.test.mjs`: settings, session lifecycle, and context-format integration coverage.
+- `tests/compact.test.mjs`: compact borders, terminal widths, autocomplete preservation, editor ownership, and collapsed-paste contents across swaps.
+- `tests/preference-control.test.mjs`: session-only footer and usage controls in normal and compact editor layouts.
 - `tests/layout.test.mjs`: layout, ANSI/Unicode, and usage bar/reset formatting.
 - `tests/git.test.mjs`: fetch jitter, live ownership, stale queries across refresh/restart/directory changes, and Git highlighting with a temporary repository.
 - `tests/usage-lifecycle.test.mjs`: usage authentication, polling, cancellation, passive updates, and provider integration.
@@ -172,13 +186,14 @@ pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: null });  // re
 - `tests/usage-parsing.test.mjs`: provider parsing.
 - `tests/persistence-order.test.mjs`: real `AgentSession` message persistence and post-persistence footer usage.
 
-Settings live under `minFooter` in Pi's configured agent directory. Read them at session start or explicit toggle; ordinary refreshes use cached settings. Preserve unrelated settings on writes. Only install the footer in interactive terminal mode.
+Settings live under `minFooter` in Pi's configured agent directory. Reload them on session start, footer commands and effective footer-control changes; usage-control changes and ordinary refreshes use cached settings. Preserve unrelated settings on writes. Only install the footer in interactive terminal mode.
 
 ### Checking changes
 
 Run `npm run check` and `npm test` for behavior changes. Each test file can also run independently, e.g. `node --test tests/git.test.mjs`. Keep the default per-file process isolation: the shared footer fixture sets isolated agent/home environment paths before importing Pi and resets settings and `Math.random` for each test. Provider requests are mocked; numeric context formatting remains real-loader integration coverage. Cover relevant cases:
 
 - Layout: narrow widths, ANSI/wide Unicode, field priority, and separator modes.
+- Compact editor: border/theme consistency, overflow priority, autocomplete, draft preservation, competing editors, and disposal. Automated coverage and an isolated interactive startup/toggle smoke test do not replace manual path-completion, image-paste, keybinding, resize, and working-state checks.
 - Git: divergence, synced styling, highlight expiry/restart, and user submissions versus tool turns.
 - Subscription usage: provider switches, timeouts, stale cache, partial updates, and malformed/missing metadata.
 

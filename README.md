@@ -47,6 +47,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 {
   "minFooter": {
     "enabled": true,
+    "compactEditor": false,
     "showGitBranch": true,
     "showSkills": true,
     "showPath": true,
@@ -65,6 +66,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 }
 ```
 
+- `compactEditor` embeds the footer in the editor's bottom separator, saving one row; experimental, default `false`. See [compact editor](#compact-editor) for limitations.
 - `showProvider` prefixes the model with its provider id, e.g. `opencode-go/deepseek-v4.1-flash`; default `false`.
 - `showThinking` appends the thinking level for reasoning models, e.g. `deepseek-v4.1-flash high` or `thinking off`, in the theme's thinking-level color; default `false`.
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
@@ -78,6 +80,20 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 With `showProvider` and `showThinking` enabled:
 
 ![Customized footer with provider prefix and high thinking level, 12k/256k context, and 44% subscription usage](media/customized-preview.png)
+
+### Compact editor
+
+Set `"compactEditor": true` to embed the footer in the prompt's bottom separator:
+
+```text
+────────────────────────────────────────────────────────────────────────
+ Explain this code
+─ ~/git/project   main ──────── gpt-6-sol · 12k/256k · [⣿⣤⠀⠀]↻16:40 ─
+```
+
+Other custom editors keep the normal footer layout. When lines are hidden below the editor viewport, Pi's overflow indicator takes priority over footer content.
+
+Switching layouts preserves draft text, but resets collapsed pastes, cursor position, undo and editor history. Prefer enabling it before composing a prompt.
 
 ## Reading the footer
 

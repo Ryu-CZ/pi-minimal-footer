@@ -16,8 +16,9 @@ import { sep } from "node:path";
 import { homedir } from "node:os";
 import { BASE_BAR_CELLS, MAX_BAR_CELLS, UsageLimits } from "./lib/usage-limits.js";
 import { readConfig, writeEnabled, type FooterSettings } from "./lib/footer-settings.js";
-import { buildLine } from "./lib/footer-layout.js";
+import { buildLine, type LineParts } from "./lib/footer-layout.js";
 import { GitStatus } from "./lib/git-status.js";
+import { CompactEditorController } from "./lib/compact-editor.js";
 
 // ── Formatting helpers ────────────────────────────────────────────────
 
@@ -119,6 +120,9 @@ export default function (pi: ExtensionAPI) {
   let requestRender: (() => void) | null = null;
   let disposeFooter: (() => void) | null = null;
   const usageLimits = new UsageLimits(() => requestRender?.());
+  const compactEditor = new CompactEditorController();
+  // Footer replacement must retain the editor to avoid resetting draft editing state.
+  let reinstallingFooter = false;
 
   function selectUsage(ctx: ExtensionContext): void {
     // The preference may remain enabled after another extension replaces our footer.
@@ -142,36 +146,39 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    ctx.ui.setFooter((tui, theme, footerData) => {
-      // Branch changes are Pi's invalidation signal; refresh the async Git
-      // divergence separately because footer rendering must remain synchronous.
-      const request = () => {
-        if (requestRender === request) tui.requestRender();
-      };
-      requestRender = request;
-      const unsub = footerData.onBranchChange(() => {
-        if (requestRender !== request) return;
-        void git.refresh().then(request);
-        request();
-      });
-      let disposed = false;
-      const dispose = () => {
-        if (disposed) return;
-        disposed = true;
-        unsub();
-        // A superseded renderer must not stop its replacement's background work.
-        if (disposeFooter === dispose) {
-          git.stop();
-          requestRender = null;
-          usageLimits.stop();
-          disposeFooter = null;
-        }
-      };
-      disposeFooter = dispose;
-      git.start(config, request);
+    reinstallingFooter = true;
+    try {
+      ctx.ui.setFooter((tui, theme, footerData) => {
+        // Branch changes are Pi's invalidation signal; refresh the async Git
+        // divergence separately because footer rendering must remain synchronous.
+        const request = () => {
+          if (requestRender === request) tui.requestRender();
+        };
+        requestRender = request;
+        const unsub = footerData.onBranchChange(() => {
+          if (requestRender !== request) return;
+          void git.refresh().then(request);
+          request();
+        });
+        let disposed = false;
+        const dispose = () => {
+          if (disposed) return;
+          disposed = true;
+          unsub();
+          // A superseded renderer must not stop its replacement's background work.
+          if (disposeFooter === dispose) {
+            compactEditor.deactivate();
+            if (!reinstallingFooter) compactEditor.dispose();
+            git.stop();
+            requestRender = null;
+            usageLimits.stop();
+            disposeFooter = null;
+          }
+        };
+        disposeFooter = dispose;
+        git.start(config, request);
 
-      return {
-        render(width: number): string[] {
+        const renderLine = (width: number, borderColor?: LineParts["borderColor"]): string => {
           const statuses = config.showSkills
             ? [...footerData.getExtensionStatuses().values()].map((s) => s.replace(/[\r\n\t]/g, " ")).filter((s) => s.trim())
             : [];
@@ -191,13 +198,23 @@ export default function (pi: ExtensionAPI) {
             statusSeparator,
             locationSeparator: config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
             maxUsageBarCells: config.maxUsageBarCells ?? MAX_BAR_CELLS,
+            borderColor,
           });
-          return [line];
-        },
-        invalidate(): void {},
-        dispose,
-      };
-    });
+          return line;
+        };
+        if (config.compactEditor === true) compactEditor.install(ctx.ui, renderLine);
+        else compactEditor.dispose();
+        return {
+          render(width: number): string[] {
+            return compactEditor.isActive() ? [] : [renderLine(width)];
+          },
+          invalidate(): void {},
+          dispose,
+        };
+      });
+    } finally {
+      reinstallingFooter = false;
+    }
     selectUsage(ctx);
   }
 

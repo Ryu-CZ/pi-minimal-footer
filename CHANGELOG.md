@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Experimental, opt-in `minFooter.compactEditor` places the status line in the editor's bottom separator to save one terminal row.
+
 ### Fixed
 
 - Clarify context versus subscription usage in previews, add a customized footer example, and correct outdated installation guidance.

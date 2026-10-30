@@ -6,6 +6,7 @@ import { MAX_BAR_CELLS } from "./usage-limits.js";
 interface Settings {
   minFooter?: {
     enabled?: boolean;
+    compactEditor?: boolean;
     showGitBranch?: boolean;
     showSkills?: boolean;
     showPath?: boolean;
@@ -30,6 +31,7 @@ const MAX_TIMER_SECONDS = Math.floor(2_147_483_647 / 1000);
 
 const DEFAULT_SETTINGS = {
   enabled: true,
+  compactEditor: false,
   showGitBranch: true,
   showSkills: true,
   showPath: true,

@@ -26,7 +26,17 @@ test.beforeEach((t) => { t.mock.method(Math, 'random', () => 0.5); });
 function makeContext({ cwd = join(agentDir, 'project'), mode = 'tui', hasUI = mode === 'tui', model = 'test-model', usage = { tokens: 12000, contextWindow: 128000 }, sessionManager = SessionManager.inMemory(cwd), footerProvider = provider(), tui = { requestRender() {} }, renderTheme = theme } = {}) {
   let factory;
   let component;
+  let editorFactory;
+  let editorText = '';
+  let expandedText;
+  let editorSwaps = 0;
   const ui = {
+    getEditorComponent: () => editorFactory,
+    setEditorComponent(next) { editorFactory = next; editorSwaps++; expandedText = undefined; },
+    getEditorText: () => expandedText ?? editorText,
+    setEditorText(text) { editorText = text; expandedText = undefined; },
+    collapsePaste(text) { editorText = '[paste marker]'; expandedText = text; },
+    get editorSwaps() { return editorSwaps; },
     setFooter(next) {
       component?.dispose?.();
       component = undefined;
@@ -103,8 +113,12 @@ async function installExtension(eventBus) {
   return result.extensions[0];
 }
 
-async function start(runtime, ctx, reason = 'startup') { await runtime.handlers.get('session_start')?.[0]?.({ reason }, ctx); }
-async function emit(runtime, name, ctx, event = {}) { await runtime.handlers.get(name)?.[0]?.(event, ctx); }
+async function start(runtime, ctx, reason = 'startup') { await emit(runtime, 'session_start', ctx, { reason }); }
+async function emit(runtime, name, ctx, event = {}) {
+  const handlers = runtime.handlers.get(name);
+  assert.ok(handlers?.length, `missing extension handler: ${name}`);
+  for (const handler of handlers) await handler(event, ctx);
+}
 
 // A fresh extension instance per test prevents global module state from leaking between cases.
 test.beforeEach(async () => {
