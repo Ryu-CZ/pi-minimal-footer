@@ -371,3 +371,60 @@ test('mode guard leaves rpc/print without a footer while rpc hasUI remains true'
   await start(await installExtension(), print.ctx);
   assert.equal(print.ui.factory, undefined);
 });
+
+test('provider and thinking details are opt-in and independently enabled', async () => {
+  for (const [options, expected] of [
+    [{}, 'test-model'],
+    [{ showProvider: true }, 'test-provider/test-model'],
+    [{ showThinking: true }, 'test-model high'],
+    [{ showProvider: true, showThinking: true }, 'test-provider/test-model high'],
+    [{ showModel: false, showProvider: true, showThinking: true }, ''],
+  ]) {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: {
+      showPath: false, showGitBranch: false, showSkills: false, showContext: false, ...options,
+    } }));
+    const runtime = await installExtension();
+    runtime.setThinkingLevel('high');
+    const { ctx, ui } = makeContext();
+    Object.assign(ctx.model, { provider: 'test-provider', reasoning: true });
+    try {
+      await start(runtime, ctx);
+      assert.equal(stripAnsi(ui.component.render(160)[0]).trim(), expected);
+    } finally {
+      await emit(runtime, 'session_shutdown', ctx);
+    }
+  }
+});
+
+test('thinking selection refreshes reasoning-only labels and SDK theme colors without reinstalling', async () => {
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showThinking: true } }));
+  const runtime = await installExtension();
+  let renders = 0;
+  const { ctx, ui } = makeContext({ tui: { requestRender: () => renders++ } });
+  ctx.model.reasoning = true;
+  try {
+    await start(runtime, ctx);
+    const component = ui.component;
+    for (const [level, color] of [
+      ['off', 'thinkingOff'], ['minimal', 'thinkingMinimal'], ['low', 'thinkingLow'],
+      ['medium', 'thinkingMedium'], ['high', 'thinkingHigh'], ['xhigh', 'thinkingXhigh'], ['max', 'thinkingMax'],
+    ]) {
+      runtime.setThinkingLevel(level);
+      const before = renders;
+      await emit(runtime, 'thinking_level_select', ctx, { type: 'thinking_level_select', level, previousLevel: 'off' });
+      assert.equal(ui.component, component);
+      assert.ok(renders > before);
+      assert.ok(component.render(160)[0].includes(theme.fg(color, ` ${level === 'off' ? 'thinking off' : level}`)), level);
+    }
+    for (const reasoning of [false, undefined]) {
+      ctx.model.reasoning = reasoning;
+      await emit(runtime, 'model_select', ctx);
+      assert.doesNotMatch(stripAnsi(component.render(160)[0]), /test-model max/);
+    }
+    ctx.model.reasoning = true;
+    await emit(runtime, 'model_select', ctx);
+    assert.match(stripAnsi(component.render(160)[0]), /test-model max/);
+  } finally {
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+});

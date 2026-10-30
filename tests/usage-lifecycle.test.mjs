@@ -777,3 +777,33 @@ test('Kimi accepts the actual Pi OAuth bearer-header contract', async (t) => {
   assert.equal(calls[0].init.headers.Authorization, 'Bearer kimi-oauth-access');
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\] $/);
 });
+
+test('showUsage false stops polling and enabling restores it on settings reload', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+  const calls = fakeUsageFetch(t);
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx);
+  await settle();
+  assert.equal(calls.length, 1, 'usage is enabled by default');
+  assert.ok(hasUsageBar(ui));
+
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showUsage: false } }));
+  await runtime.commands.get('minfooter').handler('on', ctx);
+  await settle();
+  assert.equal(hasUsageBar(ui), false);
+  await emit(runtime, 'model_select', ctx);
+  t.mock.timers.tick(480000);
+  await settle();
+  assert.equal(calls.length, 1, 'hidden usage cannot restart on model selection or timer expiry');
+
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showUsage: true } }));
+  await runtime.commands.get('minfooter').handler('on', ctx);
+  await settle();
+  assert.equal(calls.length, 2);
+  assert.ok(hasUsageBar(ui));
+  t.mock.timers.tick(240000);
+  await settle();
+  assert.equal(calls.length, 3, 'polling resumes after enabling usage');
+});
