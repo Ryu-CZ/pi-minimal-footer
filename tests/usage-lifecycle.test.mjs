@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFile, rm } from 'node:fs/promises';
+import { readFile, writeFile, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { agentDir, theme, stripAnsi, hasUsageBar, settle, usagePayload, codexContext, fakeUsageFetch, installExtension, start, emit } from './helpers/footer-fixture.mjs';
+import { agentDir, createEventBus, theme, stripAnsi, hasUsageBar, settle, usagePayload, codexContext, fakeUsageFetch, installExtension, start, emit } from './helpers/footer-fixture.mjs';
 
 for (const replacement of [undefined, () => ({ render: () => ['other footer'], dispose() {} })]) {
   test(`model selection cannot restart usage after ${replacement ? 'replacement' : 'removal'} of the footer`, async (t) => {
@@ -56,7 +56,8 @@ test('virtual selection cancels quota lookup and ignores late endpoint and provi
     headers: { 'x-codex-primary-used-percent': '35', 'x-codex-primary-window-minutes': '300' },
   });
   await emit(runtime, 'provider_stream_event', ctx, {
-    provider: 'openai-codex', model: 'test-model', data: usagePayload(),
+    provider: 'openai-codex', model: ctx.model.id,
+    data: { type: 'codex.rate_limits', rate_limits: { primary: { used_percent: 35, window_minutes: 300 } } },
   });
   assert.equal(hasUsageBar(ui), false);
   assert.equal(calls.length, 1, 'virtual selection must not start a quota lookup');
@@ -807,3 +808,115 @@ test('showUsage false stops polling and enabling restores it on settings reload'
   await settle();
   assert.equal(calls.length, 3, 'polling resumes after enabling usage');
 });
+
+test('session usage override precedence, no-op events, toggles and resets leave settings untouched', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+  const settingsPath = join(agentDir, 'settings.json');
+  const settings = '{ "minFooter": { "showUsage": false }, "unrelated": 42 }\n';
+  await writeFile(settingsPath, settings);
+  const calls = fakeUsageFetch(t);
+  const bus = createEventBus();
+  const runtime = await installExtension(bus);
+  const { ctx, ui } = codexContext();
+  const credentials = t.mock.method(ctx.modelRegistry, 'getApiKeyAndHeaders');
+  const usage = (enabled) => bus.emit('pi-minimal-footer:set-usage-enabled', { enabled });
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  usage(true);
+  await start(runtime, ctx); await settle();
+  assert.equal(credentials.mock.callCount(), 0, 'saved false and ignored pre-start event never authenticate');
+  const component = ui.component;
+  const footer = t.mock.method(ctx.ui, 'setFooter');
+  const render = t.mock.method(ui.tui, 'requestRender');
+  usage(true); await settle();
+  assert.equal(calls.length, 1);
+  assert.ok(hasUsageBar(ui), 'true overrides saved false');
+  const renders = render.mock.callCount();
+  usage(true);
+  for (const invalid of [undefined, null, false, 'true', {}, { enabled: undefined }, { enabled: 0 }, { enabled: 'false' }]) {
+    bus.emit('pi-minimal-footer:set-usage-enabled', invalid);
+  }
+  assert.equal(render.mock.callCount(), renders);
+  assert.equal(footer.mock.callCount(), 0);
+  assert.equal(ui.component, component);
+  usage(null); await settle();
+  assert.equal(hasUsageBar(ui), false, 'null restores saved false');
+  usage(true); await settle();
+  usage(false);
+  assert.equal(hasUsageBar(ui), false);
+  bus.emit('pi-minimal-footer:set-enabled', { enabled: false });
+  bus.emit('pi-minimal-footer:set-enabled', { enabled: true });
+  await settle();
+  const before = calls.length;
+  t.mock.timers.tick(480000); await settle();
+  assert.equal(calls.length, before, 'footer reinstallation preserves suppression');
+  usage(true); await settle();
+  assert.ok(hasUsageBar(ui));
+  await start(runtime, ctx); await settle();
+  assert.equal(hasUsageBar(ui), false, 'session_start clears true override');
+  usage(true); await settle();
+  await emit(runtime, 'session_shutdown', ctx);
+  usage(true);
+  await start(runtime, ctx); await settle();
+  assert.equal(hasUsageBar(ui), false, 'shutdown and pre-start events cannot leak override');
+  assert.equal(await readFile(settingsPath, 'utf8'), settings);
+  const savedTrue = '{ "minFooter": { "showUsage": true } }\n';
+  await writeFile(settingsPath, savedTrue);
+  await start(runtime, ctx); await settle();
+  usage(false);
+  assert.equal(hasUsageBar(ui), false);
+  usage(null); await settle();
+  assert.ok(hasUsageBar(ui), 'null also restores saved true');
+  assert.equal(await readFile(settingsPath, 'utf8'), savedTrue);
+});
+
+for (const mode of ['disabled', 'replaced', 'rpc']) {
+  test(`usage override cannot poll with ${mode} footer`, async (t) => {
+    const calls = fakeUsageFetch(t);
+    const bus = createEventBus();
+    const runtime = await installExtension(bus);
+    const { ctx, ui } = codexContext({ mode: mode === 'rpc' ? 'rpc' : 'tui' });
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx); await settle();
+    if (mode === 'disabled') bus.emit('pi-minimal-footer:set-enabled', { enabled: false });
+    if (mode === 'replaced') ctx.ui.setFooter(() => ({ render: () => ['replacement'], dispose() {} }));
+    const component = ui.component;
+    const before = calls.length;
+    bus.emit('pi-minimal-footer:set-usage-enabled', { enabled: false });
+    bus.emit('pi-minimal-footer:set-usage-enabled', { enabled: true });
+    await emit(runtime, 'model_select', ctx); await settle();
+    assert.equal(calls.length, before);
+    assert.equal(ui.component, component);
+  });
+}
+
+for (const pending of ['credentials', 'fetch']) {
+  test(`usage suppression cancels pending ${pending} and ignores late completion`, async (t) => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+    let finish;
+    const calls = fakeUsageFetch(t, pending === 'fetch'
+      ? () => new Promise((resolve) => { finish = () => resolve(Response.json(usagePayload())); })
+      : undefined);
+    const bus = createEventBus();
+    const runtime = await installExtension(bus);
+    const { ctx, ui } = codexContext();
+    if (pending === 'credentials') {
+      const auth = await ctx.modelRegistry.getApiKeyAndHeaders();
+      ctx.modelRegistry.getApiKeyAndHeaders = () => new Promise((resolve) => { finish = () => resolve(auth); });
+    }
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx); await settle();
+    bus.emit('pi-minimal-footer:set-usage-enabled', { enabled: false });
+    if (pending === 'fetch') assert.equal(calls[0].init.signal.aborted, true);
+    finish(); await settle();
+    await emit(runtime, 'after_provider_response', ctx, { headers: {
+      'x-codex-primary-used-percent': '35', 'x-codex-primary-window-minutes': '300',
+    } });
+    await emit(runtime, 'provider_stream_event', ctx, {
+      provider: 'openai-codex', model: ctx.model.id,
+      data: { type: 'codex.rate_limits', rate_limits: { primary: { used_percent: 35, window_minutes: 300 } } },
+    });
+    t.mock.timers.tick(480000); await settle();
+    assert.equal(calls.length, pending === 'fetch' ? 1 : 0);
+    assert.equal(hasUsageBar(ui), false);
+  });
+}

@@ -125,7 +125,7 @@ test('event-bus enable reloads configuration before deriving context', async (t)
   assert.equal(JSON.parse(await readFile(join(agentDir, 'settings.json'), 'utf8')).minFooter.enabled, false, 'event enable remains session-only');
 });
 
-test('session hook leaves settings unchanged, respects ownership, and manual commands win', async () => {
+test('footer control event leaves settings unchanged, respects ownership, and manual commands win', async () => {
   const settingsPath = join(agentDir, 'settings.json');
   const saved = JSON.stringify({ minFooter: { enabled: true } });
   await writeFile(settingsPath, saved);
@@ -169,7 +169,7 @@ test('session hook leaves settings unchanged, respects ownership, and manual com
   assert.equal(ui.component, undefined);
 });
 
-test('session hook ignores events before startup', async () => {
+test('footer control event ignores events before startup', async () => {
   const settingsPath = join(agentDir, 'settings.json');
   const saved = await readFile(settingsPath, 'utf8');
   const bus = createEventBus();
@@ -186,7 +186,7 @@ test('session hook ignores events before startup', async () => {
   }
 });
 
-test('session hook does not install a footer in non-TUI modes', async (t) => {
+test('footer control event does not install a footer in non-TUI modes', async (t) => {
   for (const mode of ['print', 'json', 'rpc']) {
     const settingsPath = join(agentDir, 'settings.json');
     const saved = await readFile(settingsPath, 'utf8');
@@ -206,7 +206,7 @@ test('session hook does not install a footer in non-TUI modes', async (t) => {
   }
 });
 
-test('session hook uses the new context after a session switch', async (t) => {
+test('footer control event uses the new context after a session switch', async (t) => {
   const bus = createEventBus();
   const runtime = await installExtension(bus);
   const first = makeContext();
@@ -280,7 +280,9 @@ test('ordinary refresh requests render without reinstalling footer or adding bra
   const readsBeforeRender = usageReads;
   component.render(120); component.render(40);
   assert.equal(usageReads, readsBeforeRender, 'render must not reread context usage');
-  p.fire(); assert.ok(renders >= 1);
+  const rendersBeforeBranchChange = renders;
+  p.fire();
+  assert.ok(renders > rendersBeforeBranchChange, 'branch changes must request a redraw');
   await emit(runtime, 'session_shutdown', ctx);
   const afterShutdown = renders;
   p.fire(); assert.equal(renders, afterShutdown);

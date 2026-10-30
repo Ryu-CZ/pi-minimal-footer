@@ -136,6 +136,24 @@ The latest explicit action wins: `/minfooter on/off` changes the current footer 
 
 Disabling restores Pi's default footer only if we still own the active footer; otherwise it leaves the active footer untouched. Enabling explicitly installs our footer and may replace another extension's footer. Repeated enable events while we own it do nothing; `/minfooter on` reloads settings and reinstalls the footer. Neither action restores a previous extension's footer. A coordinating extension must choose the active footer—there is no priority stack or automatic reactivation.
 
+#### Session-only usage control
+
+Control subscription usage independently of footer visibility:
+
+```typescript
+pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: false }); // suppress usage
+pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: true });  // enable usage
+pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: null });  // restore saved showUsage
+```
+
+- A boolean overrides `minFooter.showUsage`; `null` clears the override. No settings writes or notifications.
+- Emit after this extension's `session_start` handler. Events outside an active session, missing `enabled`, and values other than boolean or `null` are ignored. Repeated override values do nothing.
+- Disabling clears cached usage, cancels pending requests, and stops timers. Late results and passive provider updates cannot revive usage.
+- Enabling selects usage only while the footer is enabled, owns a live renderer, and runs in TUI mode. It never installs or replaces a footer.
+- Changes request a redraw without reinstalling the renderer or refreshing Git.
+- The override survives footer toggles and reinstallation, but resets on session start/shutdown and extension reload. Clearing it uses the cached setting; settings reload at the normal installation boundaries.
+- No automatic host detection. A coordinating extension can suppress duplicate quota reporting, for example when a terminal plugin already displays usage.
+
 ### Code map
 
 - `extensions/index.ts`: Pi events/commands, footer ownership, model/context formatting, theme application, and module wiring.

@@ -112,6 +112,7 @@ function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSe
 export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
+  let usageEnabledOverride: boolean | undefined;
   let currentCtx: ExtensionContext | undefined;
   const state: FooterState = { cwd: process.cwd(), provider: "", model: "no-model", thinking: "", context: "?", contextColor: "dim" };
   const git = new GitStatus(state.cwd);
@@ -122,7 +123,7 @@ export default function (pi: ExtensionAPI) {
   function selectUsage(ctx: ExtensionContext): void {
     // The preference may remain enabled after another extension replaces our footer.
     // Poll only while we own a live renderer, or model changes can resurrect hidden requests.
-    usageLimits.select(ctx, enabled && config.showUsage !== false && disposeFooter !== null);
+    usageLimits.select(ctx, enabled && (usageEnabledOverride ?? (config.showUsage !== false)) && disposeFooter !== null);
   }
 
   // Only read the level when it is displayed: the getter is a host call, and
@@ -224,7 +225,18 @@ export default function (pi: ExtensionAPI) {
     refreshFooter();
   });
 
+  pi.events.on("pi-minimal-footer:set-usage-enabled", (data) => {
+    if (!currentCtx || typeof data !== "object" || data === null ||
+        !("enabled" in data) || (typeof data.enabled !== "boolean" && data.enabled !== null)) return;
+    const override = data.enabled ?? undefined;
+    if (usageEnabledOverride === override) return;
+    usageEnabledOverride = override;
+    selectUsage(currentCtx);
+    requestRender?.();
+  });
+
   pi.on("session_start", async (_event, ctx) => {
+    usageEnabledOverride = undefined;
     currentCtx = ctx;
     config = readConfig();
     enabled = config.enabled !== false;
@@ -271,6 +283,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    usageEnabledOverride = undefined;
     currentCtx = undefined;
     usageLimits.stop();
     disposeFooter?.();

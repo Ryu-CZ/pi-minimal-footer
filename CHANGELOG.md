@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `minFooter.showProvider` (default `false`) and `minFooter.showThinking` (default `false`) extend the model field, e.g. `opencode-go/deepseek-v4.1-flash high`, with the level painted in Pi's matching `thinking*` theme color; non-reasoning models never show a level. Thanks to [@mkaros2025].
-- `minFooter.showUsage` (default `true`): set it to `false` to keep the footer from querying provider usage endpoints, which removes the subscription usage bar and its background requests when another extension already reports quota. Thanks to [@mkaros2025].
-- Color the whole context label yellowish at 85% and red at 92% of Pi’s configured compaction trigger, honoring per-model reserve overrides
+- Optional provider prefix (`minFooter.showProvider`) and colored thinking level (`minFooter.showThinking`), both off by default. Thanks to [@mkaros2025].
+- Hide subscription usage and stop its background queries with `minFooter.showUsage: false`. Thanks to [@mkaros2025].
+- Other extensions can show or hide subscription usage for the session without changing saved preferences (`pi-minimal-footer:set-usage-enabled`).
+
+### Changed
+
+- Context label turns yellow at 85% and red at 92% of the configured compaction threshold.
 
 ## [0.8.1] - 2026-10-28
 
