@@ -24,9 +24,7 @@
     "extensions/",
     "LICENSE",
     "README.md",
-    "VISION.md",
-    "package.json",
-    "media/"
+    "package.json"
   ],
   "engines": {
     "node": ">=22.19.0"

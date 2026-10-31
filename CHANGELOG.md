@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reduce npm package size by excluding preview images and development notes; README previews and documentation remain available through GitHub links.
+
 ## [0.10.0] - 2026-10-31
 
 ### Added

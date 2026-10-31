@@ -9,7 +9,7 @@
 
 An opinionated, compact, one-line status bar for [Pi](https://github.com/earendil-works/pi).
 
-![Footer preview: ~/git/project   main ↑2 · 🧠 Karpathy · 🪽 Icarus · gpt-6-sol · 12k/256k · subscription usage bar at 44% with reset time](media/preview.png)
+![Footer preview: ~/git/project   main ↑2 · 🧠 Karpathy · 🪽 Icarus · gpt-6-sol · 12k/256k · subscription usage bar at 44% with reset time](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/preview.png)
 
 **Left**
 
@@ -79,7 +79,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 
 With `showProvider` and `showThinking` enabled:
 
-![Customized footer with provider prefix and high thinking level, 12k/256k context, and 44% subscription usage](media/customized-preview.png)
+![Customized footer with provider prefix and high thinking level, 12k/256k context, and 44% subscription usage](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/customized-preview.png)
 
 ### Compact editor
 
@@ -122,7 +122,7 @@ The context label turns yellow at 85% and red at 92% of Pi's configured compacti
 
 Adapters use Pi's existing credentials; ordinary Claude API keys do not expose subscription usage.
 
-*Authenticated endpoints remain unverified live; see [verification limits](VISION.md).*
+*Authenticated endpoints remain unverified live; see [verification limits](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md).*
 
 Implemented adapters:
  - **OpenAI Codex**
@@ -137,7 +137,7 @@ Implemented adapters:
 
 Provided by other extensions; hidden with `showSkills: false`. Narrow terminals may shorten or omit them.
 
-Only one footer extension can be active. For plugin integration, see [VISION.md](VISION.md#plugin-integration).
+Only one footer extension can be active. For plugin integration, see [VISION.md](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#plugin-integration).
 
 ## Programmatic control
 
@@ -147,7 +147,7 @@ Other Pi extensions can control this footer without changing saved preferences:
 - **Subscription usage** (`pi-minimal-footer:set-usage-enabled`): show or hide the bar and its background queries independently—useful when your terminal already shows quota.
 - New sessions and `/reload` restore saved preferences.
 
-Event API and integration rules: [developer guide](VISION.md#session-only-footer-control).
+Event API and integration rules: [developer guide](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#session-only-footer-control).
 
 ## Development & design
 
@@ -157,7 +157,7 @@ Install from source:
 pi install git:github.com/Ryu-CZ/pi-minimal-footer
 ```
 
-Developer guide: [VISION.md](VISION.md). Release history: [CHANGELOG.md](CHANGELOG.md).
+Developer guide: [VISION.md](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md). Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Credits
 

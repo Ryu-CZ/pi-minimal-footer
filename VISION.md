@@ -4,7 +4,7 @@
 
 An opinionated footer that answers three questions at a glance: where am I, what is running, and how close am I to a limit? Keep one line, avoid redundant labels, and never exceed the terminal width.
 
-The [README](README.md) is the user manual. This document records current design and contributor guidance—not a speculative roadmap.
+The [README](README.md) is the user manual. This document records current design and contributor guidance. Potential ideas are explicitly marked and are not implementation commitments.
 
 ## Layout contract
 
@@ -96,6 +96,41 @@ Reuse Pi's selected-provider credentials. Copilot uses the saved OAuth GitHub lo
 ### Verification limits
 
 Parsing and lifecycle behavior have automated coverage. Authenticated provider endpoints have **not** been tested live. OpenCode Go's bearer-token response format and Copilot's public endpoint/enterprise compatibility remain unverified.
+
+## Potential idea: provider icons
+
+Not implemented. Explore a monochrome icon before the model name to identify the **connection provider**, not the model maker. For example, Claude served through OpenCode gets the OpenCode icon. Auth variants of the same service share an icon; OpenCode Zen and Go share one too. Emoji were considered and rejected for this direction.
+
+This is a candidate mapping, not a popularity ranking or a verified list of Pi provider IDs. The initial shortlist is retained below; additional symbols are tentative visual associations, not official logos. Resolve actual provider IDs before implementation, and do not infer the provider from the model name.
+
+| Connection provider | Candidate icon | Status / rationale |
+|---|---|---|
+| Anthropic / Claude direct | `✳` | Initial shortlist; starburst |
+| OpenAI / Codex | `◎` | Initial shortlist; circular mark |
+| Google Gemini | `✦` | Initial shortlist; sparkle |
+| GitHub Copilot | `` | Initial shortlist; Nerd Font GitHub glyph (U+F113) |
+| OpenCode Zen / Go | `▣` | Block-like mark |
+| OpenRouter | `⇄` | Initial shortlist; routing |
+| Amazon Bedrock | `▤` | Tentative; stacked foundation |
+| Azure OpenAI | `△` | Tentative; angular mark |
+| Google Vertex AI | `⋈` | Tentative; connected vertices |
+| Groq | `»` | Tentative; speed |
+| Cerebras | `▦` | Tentative; chip grid |
+| Together AI | `⋈` | Tentative; connection; collides with Vertex, revisit |
+| Fireworks AI | `※` | Tentative; burst |
+| DeepSeek direct | `≈` | Initial shortlist; water association |
+| Mistral direct | `≋` | Initial shortlist; wind |
+| xAI direct | `𝕏` | Tentative; check legibility and font coverage |
+| Z.ai direct | `Z` | Tentative; plain-letter fallback |
+| Moonshot / Kimi direct | `☾` | Tentative; moon |
+| Alibaba / Qwen direct | `Q` | Tentative; plain-letter fallback |
+| MiniMax direct | `M` | Tentative; plain-letter fallback |
+| Ollama, llama.cpp, LM Studio | `⌂` | Initial shortlist; shared local-provider mark |
+| Unknown / custom endpoint | `◇` | Initial shortlist; neutral fallback |
+
+Examples: `✳ sonnet`, `▣ deepseek-v4.1-flash`, `⇄ anthropic/claude-sonnet`. An OpenAI-compatible API alone does not establish OpenAI as the provider; unknown services retain the fallback.
+
+Font coverage and terminal column widths remain unverified. Check the candidates in a real terminal before adopting them; Nerd Font support does not guarantee every symbol is present. Keep any future icon and model label in the same width-accounted, truncatable unit. Whether icons supplement or replace the optional textual provider prefix remains undecided.
 
 ## Local development
 
