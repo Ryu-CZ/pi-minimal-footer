@@ -139,6 +139,7 @@ Other Pi extensions can control this footer without changing saved preferences:
 
 - **Footer** (`pi-minimal-footer:set-enabled`): enable or disable for the current session.
 - **Subscription usage** (`pi-minimal-footer:set-usage-enabled`): show or hide the bar and its background queries independently—useful when your terminal already shows quota.
+- **Compact editor** (`pi-minimal-footer:set-compact-enabled`): switch between the normal footer and compact editor with `{ enabled: true | false }`; use `{ enabled: null }` to restore the saved setting.
 - New sessions and `/reload` restore saved preferences.
 
 Event API and integration rules: [developer guide](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#session-only-footer-control).

@@ -170,7 +170,7 @@ Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` re
 
 #### Session-only footer control
 
-Both control events apply to normal and compact editor layouts. They do not change `compactEditor` or bypass editor-ownership safeguards.
+Footer and usage controls apply to both layouts. Compact mode has its own session-only control below. None bypass editor-ownership safeguards.
 
 Extensions can temporarily override footer visibility without changing the user's saved setting:
 
@@ -184,6 +184,20 @@ Emit after this extension's `session_start` handler has run; events before start
 The latest explicit action wins: `/minfooter on/off` changes the current footer and saves the preference, while this event changes only the current session. Normal refreshes never undo the choice. A new session or extension reload starts from the saved preference.
 
 Disabling restores Pi's default footer only if we still own the active footer; otherwise it leaves the active footer untouched. Enabling explicitly installs our footer and may replace another extension's footer. Repeated enable events while we own it do nothing; `/minfooter on` reloads settings and reinstalls the footer. Neither action restores a previous extension's footer. A coordinating extension must choose the active footer—there is no priority stack or automatic reactivation.
+
+#### Session-only compact editor control
+
+```typescript
+pi.events.emit("pi-minimal-footer:set-compact-enabled", { enabled: true });  // compact editor
+pi.events.emit("pi-minimal-footer:set-compact-enabled", { enabled: false }); // normal footer
+pi.events.emit("pi-minimal-footer:set-compact-enabled", { enabled: null });  // restore saved compactEditor
+```
+
+- A boolean overrides `minFooter.compactEditor`; `null` clears the override using the cached setting. No settings writes or notifications.
+- Emit after this extension's `session_start` handler. Events outside an active session and invalid payloads are ignored. Repeated values or unchanged effective layouts do not swap editors.
+- Layout changes reinstall only an enabled, owned footer. They never enable the footer or reclaim another extension's footer/editor. Competing editors retain the normal-row fallback.
+- Draft text survives swaps; collapsed pastes expand. Cursor position, undo state and input history are not transferred between editors.
+- The override survives footer toggles and reinstallation, but resets on session start/shutdown and extension reload.
 
 #### Session-only usage control
 

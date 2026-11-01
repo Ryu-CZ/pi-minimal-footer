@@ -114,6 +114,7 @@ export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
   let usageEnabledOverride: boolean | undefined;
+  let compactEnabledOverride: boolean | undefined;
   let currentCtx: ExtensionContext | undefined;
   const state: FooterState = { cwd: process.cwd(), provider: "", model: "no-model", thinking: "", context: "?", contextColor: "dim" };
   const git = new GitStatus(state.cwd);
@@ -204,7 +205,7 @@ export default function (pi: ExtensionAPI) {
           });
           return line;
         };
-        if (config.compactEditor === true) compactEditor.install(ctx.ui, renderLine);
+        if (compactEnabledOverride ?? (config.compactEditor === true)) compactEditor.install(ctx.ui, renderLine);
         else compactEditor.dispose();
         return {
           render(width: number): string[] {
@@ -254,7 +255,21 @@ export default function (pi: ExtensionAPI) {
     requestRender?.();
   });
 
+  pi.events.on("pi-minimal-footer:set-compact-enabled", (data) => {
+    if (!currentCtx || typeof data !== "object" || data === null ||
+        !("enabled" in data) || (typeof data.enabled !== "boolean" && data.enabled !== null)) return;
+    const override = data.enabled ?? undefined;
+    if (compactEnabledOverride === override) return;
+    const wasCompact = compactEnabledOverride ?? (config.compactEditor === true);
+    compactEnabledOverride = override;
+    if (wasCompact === (compactEnabledOverride ?? (config.compactEditor === true))) return;
+    if (!enabled || disposeFooter === null) return;
+    install(currentCtx);
+    refreshFooter();
+  });
+
   pi.on("session_start", async (_event, ctx) => {
+    compactEnabledOverride = undefined;
     usageEnabledOverride = undefined;
     currentCtx = ctx;
     config = readConfig();
@@ -302,6 +317,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    compactEnabledOverride = undefined;
     usageEnabledOverride = undefined;
     currentCtx = undefined;
     usageLimits.stop();

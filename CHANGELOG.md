@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Switch compact editor mode for the session with `pi-minimal-footer:set-compact-enabled`, without changing saved settings.
+
 ### Changed
 
 - Show compact editor mode in a README preview and move compatibility details to the developer guide.
