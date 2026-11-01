@@ -83,17 +83,11 @@ With `showProvider` and `showThinking` enabled:
 
 ### Compact editor
 
-Set `"compactEditor": true` to embed the footer in the prompt's bottom separator:
+Set `"compactEditor": true` to replace both the footer and prompt editor, embedding the status line in the prompt's bottom separator to save one row:
 
-```text
-────────────────────────────────────────────────────────────────────────
- Explain this code
-─ ~/git/project   main ──────── gpt-6-sol · 12k/256k · [⣿⣤⠀⠀]↻16:40 ─
-```
+![Compact editor with high-thinking purple borders and separators, 12k/256k context, and 44% subscription usage](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/compact-preview.png)
 
-Other custom editors keep the normal footer layout. When lines are hidden below the editor viewport, Pi's overflow indicator takes priority over footer content.
-
-Switching layouts preserves draft text, but resets collapsed pastes, cursor position, undo and editor history. Prefer enabling it before composing a prompt.
+See [compatibility and layout-switching details](VISION.md#compact-editor-contract).
 
 ## Reading the footer
 

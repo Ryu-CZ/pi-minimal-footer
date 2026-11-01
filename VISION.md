@@ -47,7 +47,7 @@ The `setFooter` factory remains the lifecycle, theme and footer-data owner. Its 
 
 Claim only the default editor (`getEditorComponent() === undefined`). Identity-check ownership before restoring it; never clear a competing factory. A later takeover falls back on the next footer render without reasserting ownership. Retain the compact factory across footer reinstallation to avoid redundant swaps. Off, shutdown, settings changes and external footer replacement release owned resources idempotently; disposal never calls `setFooter` recursively.
 
-Before every owned install or restore, capture expanded `ctx.ui.getEditorText()`. After `setEditorComponent`, restore it through `setEditorText` if needed: the host's ordinary swap copies marker text without its private collapsed-paste store. Text must survive, including expanded paste contents. Paste collapse, cursor position and undo/history state are not preserved across actual swaps; this is an explicit opt-in limitation, not permission to lose draft content.
+Before every owned install or restore, capture expanded `ctx.ui.getEditorText()`. After `setEditorComponent`, restore it through `setEditorText` if needed: the host's ordinary swap copies marker text without its private collapsed-paste store. Text must survive, including expanded paste contents. Collapsed pastes expand during a swap. Cursor position, undo state and input history are not transferred between editors; Pi's retained default editor may keep its own history when restored. Prefer enabling compact mode before composing a prompt. These limitations do not permit losing draft content.
 
 ## Context display contract
 
