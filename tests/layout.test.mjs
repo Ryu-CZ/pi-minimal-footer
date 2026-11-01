@@ -134,7 +134,7 @@ test('extension statuses are individual power tabs without footer-added wrappers
   const { ctx, ui } = makeContext({ footerProvider: provider(new Map([['a', '🧠 Karpathy'], ['b', '🪽 Icarus'], ['empty', ' ']])) });
   await start(runtime, ctx);
   const line = stripAnsi(ui.component.render(160)[0]);
-  assert.ok(line.includes(' 🧠 Karpathy  🪽 Icarus  test-model · 12k/128k'), line);
+  assert.ok(line.includes(' 🧠 Karpathy  🪽 Icarus  test-model · 12k/128k'), line);
   assert.doesNotMatch(line, /[()|]/);
   for (let width = 0; width <= 160; width++) assert.ok(visibleWidth(ui.component.render(width)[0]) <= width, `width=${width}`);
   await emit(runtime, 'session_shutdown', ctx);
@@ -159,7 +159,7 @@ test('compact model separators and optional plain-space status fallback', async 
     const { ctx, ui } = makeContext({ footerProvider: provider(new Map([['a', 'status']])) });
     await start(runtime, ctx);
     const line = stripAnsi(ui.component.render(120)[0]);
-    assert.ok(line.includes(`${powerlineSeparator ? '  ' : ' '}status${powerlineSeparator ? '  ' : ' '}test-model · 12k/128k`));
+    assert.ok(line.includes(` status${powerlineSeparator ? '  ' : ' '}test-model · 12k/128k`));
     assert.match(line, /test-model · 12k\/128k/);
     assert.ok(line.includes(`project${powerlineSeparator ? '  ' : ' '} main`), line);
     const noBranch = ui.factory(ui.tui, theme, provider(new Map(), null));
@@ -184,17 +184,17 @@ test('rendering fits pathological widths, ANSI/Unicode status, and preserves mod
   const wide = component.render(160)[0];
   assert.match(wide, /模型/);
   assert.match(wide, / main/);
-  assert.match(stripAnsi(wide), /^ ~\/project\/child   main + 技能 ✅  long status text  模型-red · 12k\/128k $/);
+  assert.match(stripAnsi(wide), /^ ~\/project\/child   main +技能 ✅  long status text  模型-red · 12k\/128k $/);
   assert.deepEqual(boldCalls.slice(-2), ['模型\u001b[31m-red\u001b[0m', '12k/128k'], 'model/context retain bold theme styling');
   assert.match(wide, /\u001b\[1m/);
   assert.equal(visibleWidth(wide), 160, 'normal layout right-aligns and fills the available width');
   const medium = stripAnsi(component.render(45)[0]);
   assert.doesNotMatch(medium, /long status text/, 'long statuses shorten before git');
-  assert.match(medium, / 技能 .*\.\.\./);
+  assert.match(medium, / 技能 .*\.\.\./);
   assert.match(medium, / main/);
   assert.match(medium, /模型/);
   assert.equal(visibleWidth(medium), 45, 'status-drop layout remains right-aligned');
-  assert.match(medium, /^  main + .*  模型/);
+  assert.match(medium, /^  main +.*  模型/);
   assert.match(medium, /12k\/128k $/);
   const narrow = stripAnsi(component.render(20)[0]);
   assert.doesNotMatch(narrow, /|技能|long status/, 'git drops before model/context');
@@ -243,7 +243,7 @@ test('Codex renders only shortest window as Braille and local reset time, fittin
   await start(runtime, ctx); await settle();
   const lines = ui.component.render(120).map(stripAnsi);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /project   main + 技能 ✅  test-model/);
+  assert.match(lines[0], /project   main +技能 ✅  test-model/);
   assert.match(lines[0], /test-model · 12k\/128k · \[⣿{3}⣤⠀{6}\]↻16:40 $/);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://chatgpt.com/backend-api/wham/usage');

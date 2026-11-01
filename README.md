@@ -9,7 +9,7 @@
 
 An opinionated, compact, one-line status bar for [Pi](https://github.com/earendil-works/pi).
 
-![Footer preview: ~/git/project   main ↑2 · 🧠 Karpathy · 🪽 Icarus · gpt-6-sol · 12k/256k · subscription usage bar at 44% with reset time](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/preview.png)
+![Footer preview: ~/git/project   main ↑2, right-aligned 🧠 Karpathy  🪽 Icarus  gpt-6-sol · 12k/256k · subscription usage bar at 44% with reset time](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/preview.png)
 
 **Left**
 
@@ -18,7 +18,7 @@ An opinionated, compact, one-line status bar for [Pi](https://github.com/earendi
 
 **Right**
 
-- Extension statuses: ` 🧠 Karpathy  🪽 Icarus`
+- Extension statuses: `🧠 Karpathy  🪽 Icarus`
 - Model: `model`
 - Context usage: `12k/256k` (default), or `4.7%/256k` with `contextAsPercentage: true`
 - Subscription usage bar with reset time: `[⣿⣿⣿⣿⣄⠀⠀⠀⠀⠀]↻1d8h`
@@ -79,7 +79,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 
 With `showProvider` and `showThinking` enabled:
 
-![Customized footer with provider prefix and high thinking level, 12k/256k context, and 44% subscription usage](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/customized-preview.png)
+![Customized footer with provider prefix, high thinking level and matching purple separators, 12k/256k context, and 44% subscription usage](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/customized-preview.png)
 
 ### Compact editor
 

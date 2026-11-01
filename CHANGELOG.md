@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Show compact editor mode in a README preview and move compatibility details to the developer guide.
+- Keep separators only between footer items, removing the leading `` and extra spacing before statuses in both modes.
+- Match `·`, ``, and `` separators to the editor’s thinking-level color in non-compact mode too.
 
 ## [0.10.1] - 2026-11-01
 

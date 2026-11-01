@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createJiti } from 'jiti';
 import { CustomEditor } from '@earendil-works/pi-coding-agent';
 import { CombinedAutocompleteProvider, truncateToWidth } from '@earendil-works/pi-tui';
-import { agentDir, makeContext, installExtension, start, emit, visibleWidth, stripAnsi } from './helpers/footer-fixture.mjs';
+import { theme, agentDir, makeContext, installExtension, start, emit, visibleWidth, stripAnsi } from './helpers/footer-fixture.mjs';
 const jiti = createJiti(import.meta.url);
 const { CompactEditor, CompactEditorController } = await jiti.import('../extensions/lib/compact-editor.ts');
 const { buildLine } = await jiti.import('../extensions/lib/footer-layout.ts');
@@ -90,7 +90,7 @@ test('compact dots use border color without changing content or cell budgets', (
   }
 });
 
-test('powerline separators follow the border color only in compact mode', async () => {
+test('powerline separators follow editor colors in both modes', async () => {
   for (const compactEditor of [false, true]) {
     await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: {
       compactEditor, powerlineSeparator: true, showUsage: false,
@@ -109,9 +109,19 @@ test('powerline separators follow the border color only in compact mode', async 
       line = ui.component.render(200).join('\n');
       for (const separator of [' · ', '  ', '  ']) {
         assert.ok(!line.includes(editorTheme.borderColor(separator)), separator);
-        assert.ok(stripAnsi(line).includes(separator), separator);
+        assert.ok(line.includes(theme.fg('thinkingOff', separator)), separator);
       }
     }
+    if (!compactEditor) {
+      runtime.setThinkingLevel('high');
+      const updated = ui.component.render(200).join('\n');
+      for (const separator of [' · ', '  ', '  ']) {
+        assert.ok(updated.includes(theme.fg('thinkingHigh', separator)), separator);
+      }
+      assert.doesNotMatch(stripAnsi(updated), /─/);
+    }
+    const plain = stripAnsi(line);
+    assert.doesNotMatch(plain, /─  |─ |main +/);
     await emit(runtime, 'session_shutdown', {}, ctx);
   }
 });

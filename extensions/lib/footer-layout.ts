@@ -23,6 +23,7 @@ export interface LineParts {
   locationSeparator: string;
   maxUsageBarCells: number;
   borderColor?: ((text: string) => string) | undefined;
+  separatorColor?: ((text: string) => string) | undefined;
 }
 
 function fitPath(path: string, width: number): string {
@@ -40,14 +41,14 @@ function fitPath(path: string, width: number): string {
 
 export function buildLine({
   width, path, pathColor, statuses, branch, model, context, usage,
-  statusSeparator, locationSeparator, maxUsageBarCells, borderColor,
+  statusSeparator, locationSeparator, maxUsageBarCells, borderColor, separatorColor = borderColor,
 }: LineParts): string {
   if (width <= 0) return "";
   const edgeWidth = borderColor ? 4 : 2;
   if (width <= edgeWidth) return borderColor ? borderColor("─".repeat(width)) : " ".repeat(width);
   width -= edgeWidth;
-  const modelGap = borderColor ? borderColor(MODEL_GAP) : MODEL_GAP;
-  const usageGap = borderColor ? borderColor(USAGE_GAP) : USAGE_GAP;
+  const modelGap = separatorColor ? separatorColor(MODEL_GAP) : MODEL_GAP;
+  const usageGap = separatorColor ? separatorColor(USAGE_GAP) : USAGE_GAP;
   let core = [model, context].filter(Boolean).join(modelGap);
   // Budget the compact bar first; its expanded size must not drive truncation decisions.
   const usageBar = usage(width, Math.min(BASE_BAR_CELLS, maxUsageBarCells)) ?? "";
