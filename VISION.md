@@ -217,6 +217,17 @@ pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: null });  // re
 - The override survives footer toggles and reinstallation, but resets on session start/shutdown and extension reload. Clearing it uses the cached setting; settings reload at the normal installation boundaries.
 - No automatic host detection. A coordinating extension can suppress duplicate quota reporting, for example when a terminal plugin already displays usage.
 
+#### Potential state reporting (not implemented)
+
+- **Purpose:** let coordinating extensions observe footer operating state.
+- **Notification:** potential `pi-minimal-footer:state-changed` event.
+- **Query:** let late subscribers request the current state.
+- **State:** effective footer/usage preferences, requested compact mode, actual layout (`compact`, `normal`, `inactive`), footer ownership.
+- **Distinction:** compact requested ≠ compact active; footer disabled ≠ replaced by another extension.
+- **Emit on:** startup, shutdown, preference changes, layout changes, ownership changes—only when state differs.
+- **Exclude:** loading progress, token counts, quota values, Git updates, redraws.
+- **Before implementation:** identify a concrete consumer; define the query contract and reliable ownership-change detection.
+
 ### Code map
 
 - `extensions/index.ts`: Pi events/commands, footer ownership, model/context formatting, theme application, and module wiring.
