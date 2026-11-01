@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Paths: keep the current directory visible by shortening parent directories first.
+- Compact editor: match `·`, ``, and `` separators to the thinking-level border color.
+
 ### Fixed
 
-- Reduce npm package size by excluding preview images and development notes; README previews and documentation remain available through GitHub links.
+- Smaller npm download; previews and development notes remain available on GitHub.
 
 ## [0.10.0] - 2026-10-31
 

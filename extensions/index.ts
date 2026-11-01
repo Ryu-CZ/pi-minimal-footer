@@ -185,10 +185,12 @@ export default function (pi: ExtensionAPI) {
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
           const branchText = branch ? ` ${branch}${git.sync}` : "";
           const gitText = git.highlighted ? theme.bold(branchText) : branchText;
-          const statusSeparator = config.powerlineSeparator ? theme.fg("dim", "  ") : " ";
+          const separatorColor = borderColor ?? ((text: string) => theme.fg("dim", text));
+          const statusSeparator = config.powerlineSeparator ? separatorColor("  ") : " ";
           const line = buildLine({
             width,
-            path: config.showPath ? theme.fg("dim", abbreviateHome(state.cwd, homedir())) : "",
+            path: config.showPath ? abbreviateHome(state.cwd, homedir()) : "",
+            pathColor: (text) => theme.fg("dim", text),
             statuses: statuses.length ? statusSeparator + statuses.map((status) => theme.fg("dim", status)).join(statusSeparator) : "",
             // Pulse weight independently of the existing divergence color.
             branch: branchText ? theme.fg(git.sync ? "text" : "dim", gitText) : "",
@@ -196,7 +198,7 @@ export default function (pi: ExtensionAPI) {
             context: config.showContext ? theme.fg(state.contextColor, theme.bold(state.context)) : "",
             usage: (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
             statusSeparator,
-            locationSeparator: config.powerlineSeparator ? theme.fg("dim", "  ") : " ",
+            locationSeparator: config.powerlineSeparator ? separatorColor("  ") : " ",
             maxUsageBarCells: config.maxUsageBarCells ?? MAX_BAR_CELLS,
             borderColor,
           });

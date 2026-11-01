@@ -11,7 +11,8 @@ The [README](README.md) is the user manual. This document records current design
 - Directory and Git branch form the left group, separated by ``.
 - Each extension status is its own `` tab. Preserve the supplied text except for replacing line breaks and tabs with spaces; do not invent status labels, parentheses, or pipes.
 - Model, context, and subscription usage form the rightmost group, separated by ` · `. Model identifies the running engine; context describes its usage; the usage bar stays anchored at the right edge.
-- Powerline separators are dim. `powerlineSeparator: false` replaces them with a single space. Font availability cannot be detected reliably.
+- Powerline separators are dim in normal mode and use the thinking-level border color in compact mode. `powerlineSeparator: false` replaces them with a single space. Font availability cannot be detected reliably.
+- Shorten paths by dropping parent directories first, prefixed with `…/`. Keep the current directory name intact when possible; truncate it only when it cannot fit alone. Apply path color after shortening.
 - Measure terminal columns with `visibleWidth`, not string length. Preserve ANSI styling and wide-character accounting when truncating.
 
 ### Space allocation
@@ -40,7 +41,7 @@ The bar and reset label have no intervening space. Reset formatting uses local c
 
 `minFooter.compactEditor` is experimental, opt-in and defaults to `false`. `CompactEditor` overrides only Pi's protected `renderBottomBorder`; input handling, completion and full editor rendering remain inherited. Return the original border when lines are hidden below the viewport or the overlay is inactive/empty. Otherwise apply the shared formatted line with ANSI/cell-safe truncation, retaining any uncovered border columns. `embedWorkingStatus: true` retains Pi's working indicator in the top border.
 
-Compact formatting reserves `─ ` / ` ─` edge caps and fills structural padding between groups with rules in the editor's current `borderColor`. Spaces inside supplied text stay unchanged. At widths of four columns or fewer, render only the rule. Normal formatting retains its space padding.
+Compact formatting reserves `─ ` / ` ─` edge caps and fills structural padding between groups with rules in the editor's current `borderColor`. The `·`, ``, and `` separators use the same border color; content colors remain unchanged. Spaces inside supplied text stay unchanged. At widths of four columns or fewer, render only the rule. Normal formatting retains its space padding.
 
 The `setFooter` factory remains the lifecycle, theme and footer-data owner. Its shared `renderLine` callback supplies both presentations. Render zero footer rows only while the compact factory actually owns the editor; otherwise render the normal one-line footer. Disposal deactivates the callback so retained editor instances return their original border. Git and usage work remain owned by the footer, not by the editor.
 

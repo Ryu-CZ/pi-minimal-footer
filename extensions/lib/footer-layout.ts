@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { sliceByColumn, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { BASE_BAR_CELLS } from "./usage-limits.js";
 
 // Keep bar/reset together; shorten location/statuses before model/context.
@@ -13,6 +13,7 @@ const MIN_STATUS_WIDTH = 12;
 export interface LineParts {
   width: number;
   path: string;
+  pathColor?: ((text: string) => string) | undefined;
   statuses: string;
   branch: string;
   model: string;
@@ -24,15 +25,30 @@ export interface LineParts {
   borderColor?: ((text: string) => string) | undefined;
 }
 
+function fitPath(path: string, width: number): string {
+  if (visibleWidth(path) <= width) return path;
+  const parts = path.split("/");
+  for (let start = 1; start < parts.length; start++) {
+    const shortened = "…/" + parts.slice(start).join("/");
+    if (visibleWidth(shortened) <= width) return shortened;
+  }
+  const basename = parts[parts.length - 1] ?? path;
+  if (visibleWidth(basename) <= width) return basename;
+  const ellipsis = "...";
+  return sliceByColumn(basename, 0, width - ellipsis.length, true) + ellipsis;
+}
+
 export function buildLine({
-  width, path, statuses, branch, model, context, usage,
+  width, path, pathColor, statuses, branch, model, context, usage,
   statusSeparator, locationSeparator, maxUsageBarCells, borderColor,
 }: LineParts): string {
   if (width <= 0) return "";
   const edgeWidth = borderColor ? 4 : 2;
   if (width <= edgeWidth) return borderColor ? borderColor("─".repeat(width)) : " ".repeat(width);
   width -= edgeWidth;
-  let core = [model, context].filter(Boolean).join(MODEL_GAP);
+  const modelGap = borderColor ? borderColor(MODEL_GAP) : MODEL_GAP;
+  const usageGap = borderColor ? borderColor(USAGE_GAP) : USAGE_GAP;
+  let core = [model, context].filter(Boolean).join(modelGap);
   // Budget the compact bar first; its expanded size must not drive truncation decisions.
   const usageBar = usage(width, Math.min(BASE_BAR_CELLS, maxUsageBarCells)) ?? "";
   const usageGapWidth = usageBar && core ? USAGE_GAP.length : 0;
@@ -43,12 +59,12 @@ export function buildLine({
     const modelGapWidth = model && context ? MODEL_GAP.length : 0;
     const modelBudget = coreBudget - visibleWidth(context) - modelGapWidth;
     if (modelBudget > 0) {
-      core = [truncateToWidth(model, modelBudget, "..."), context].filter(Boolean).join(MODEL_GAP);
+      core = [truncateToWidth(model, modelBudget, "..."), context].filter(Boolean).join(modelGap);
     } else {
       core = truncateToWidth(context || model, coreBudget, "...");
     }
   }
-  const protectedRight = [core, usageBar].filter(Boolean).join(USAGE_GAP);
+  const protectedRight = [core, usageBar].filter(Boolean).join(usageGap);
   const branchReservation = branch ? visibleWidth(branch) + LOCATION_GAP_WIDTH : 0;
   const statusBudget = width - visibleWidth(protectedRight) - branchReservation - visibleWidth(statusSeparator);
   let fittedStatuses = "";
@@ -64,14 +80,16 @@ export function buildLine({
   const fittedBranch = visibleWidth(branch) <= leftBudget ? branch : "";
   const pathGapWidth = fittedBranch && path ? visibleWidth(locationSeparator) : 0;
   const pathBudget = leftBudget - visibleWidth(fittedBranch) - pathGapWidth;
-  const fittedPath = pathBudget >= MIN_TEXT_WIDTH ? truncateToWidth(path, pathBudget, "...") : "";
-  const left = [fittedPath, fittedBranch].filter(Boolean).join(locationSeparator);
+  const fittedPath = pathBudget >= MIN_TEXT_WIDTH ? fitPath(path, pathBudget) : "";
+  // Shorten plain path components before applying ANSI styling.
+  const styledPath = fittedPath && pathColor ? pathColor(fittedPath) : fittedPath;
+  const left = [styledPath, fittedBranch].filter(Boolean).join(locationSeparator);
   if (usageBar) {
     // A dropped left group needs no divider; those columns belong to the usage bar instead.
     const interGroupGapWidth = left && right ? LOCATION_GAP_WIDTH : 0;
     const spareWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right) - interGroupGapWidth);
     const expandedUsageBar = usage(visibleWidth(usageBar) + spareWidth, maxUsageBarCells) ?? usageBar;
-    const expandedCore = [core, expandedUsageBar].filter(Boolean).join(USAGE_GAP);
+    const expandedCore = [core, expandedUsageBar].filter(Boolean).join(usageGap);
     right = [fittedStatuses, expandedCore].filter(Boolean).join(statusSeparator);
   }
   const gapWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right));

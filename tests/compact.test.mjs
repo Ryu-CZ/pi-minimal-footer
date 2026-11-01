@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createJiti } from 'jiti';
 import { CustomEditor } from '@earendil-works/pi-coding-agent';
-import { truncateToWidth } from '@earendil-works/pi-tui';
+import { CombinedAutocompleteProvider, truncateToWidth } from '@earendil-works/pi-tui';
 import { agentDir, makeContext, installExtension, start, emit, visibleWidth, stripAnsi } from './helpers/footer-fixture.mjs';
 const jiti = createJiti(import.meta.url);
 const { CompactEditor, CompactEditorController } = await jiti.import('../extensions/lib/compact-editor.ts');
@@ -75,6 +75,81 @@ test('compact layout embeds groups in a rule without changing text spaces or nor
   }
 });
 
+test('compact dots use border color without changing content or cell budgets', () => {
+  const parts = {
+    width: 100, path: '', branch: '', statuses: '', model: '\x1b[32mmodel\x1b[0m', context: '12k/128k',
+    usage: available => available >= 7 ? '[usage]' : null, statusSeparator: ' | ', locationSeparator: ' / ', maxUsageBarCells: 10,
+  };
+  const compact = buildLine({ ...parts, borderColor: editorTheme.borderColor });
+  const normal = buildLine(parts);
+  assert.equal(compact.split(editorTheme.borderColor(' · ')).length - 1, 2);
+  assert.ok(compact.includes(parts.model));
+  assert.ok(normal.includes('model\x1b[0m · 12k/128k · [usage]'));
+  for (let width = 1; width <= 100; width++) {
+    assert.equal(visibleWidth(buildLine({ ...parts, width, borderColor: editorTheme.borderColor })), width);
+  }
+});
+
+test('powerline separators follow the border color only in compact mode', async () => {
+  for (const compactEditor of [false, true]) {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: {
+      compactEditor, powerlineSeparator: true, showUsage: false,
+    } }));
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext();
+    await start(runtime, ctx);
+    let line;
+    if (compactEditor) {
+      const editor = ui.getEditorComponent()(tui, editorTheme, keys);
+      line = editor.render(200).join('\n');
+      for (const separator of [' · ', '  ', '  ']) {
+        assert.ok(line.includes(editorTheme.borderColor(separator)), separator);
+      }
+    } else {
+      line = ui.component.render(200).join('\n');
+      for (const separator of [' · ', '  ', '  ']) {
+        assert.ok(!line.includes(editorTheme.borderColor(separator)), separator);
+        assert.ok(stripAnsi(line).includes(separator), separator);
+      }
+    }
+    await emit(runtime, 'session_shutdown', {}, ctx);
+  }
+});
+
+test('shortened paths retain styling around the entire visible path', () => {
+  const pathColor = text => `\x1b[2m${text}\x1b[22m`;
+  const parts = {
+    path: '~/git/pi-minimal-footer', pathColor, branch: '', statuses: '', model: '', context: '',
+    usage: () => null, statusSeparator: ' | ', locationSeparator: ' / ', maxUsageBarCells: 10,
+  };
+  for (const borderColor of [undefined, editorTheme.borderColor]) {
+    const edges = borderColor ? 4 : 2;
+    for (const [budget, expected] of [[30, parts.path], [20, '…/pi-minimal-footer'], [10, 'pi-mini...']]) {
+      const line = buildLine({ ...parts, width: budget + edges, borderColor });
+      assert.ok(line.includes(pathColor(expected)), JSON.stringify(line));
+      assert.equal(visibleWidth(line), budget + edges);
+    }
+  }
+});
+
+test('path shortening drops ancestors before truncating the current directory', () => {
+  const parts = {
+    path: '~/git/pi-minimal-footer', branch: '', statuses: '', model: '', context: '',
+    usage: () => null, statusSeparator: ' | ', locationSeparator: ' / ', maxUsageBarCells: 10,
+  };
+  for (const borderColor of [undefined, editorTheme.borderColor]) {
+    const edges = borderColor ? 4 : 2;
+    const render = budget => stripAnsi(buildLine({ ...parts, width: budget + edges, borderColor }));
+    assert.ok(render(30).includes('~/git/pi-minimal-footer'));
+    assert.ok(render(20).includes('…/pi-minimal-footer'));
+    assert.ok(render(17).includes('pi-minimal-footer'));
+    assert.ok(render(10).includes('pi-mini...'));
+    for (let width = 1; width <= 40; width++) {
+      assert.equal(visibleWidth(buildLine({ ...parts, width, borderColor })), width);
+    }
+  }
+});
+
 test('one remaining gap column cannot become two compact separator spaces', () => {
   const line = buildLine({
     width: 40, path: 'path', branch: 'main', statuses: '', model: 'm', context: '',
@@ -110,6 +185,27 @@ test('autocomplete rows remain identical below the separator', async () => {
     assert.deepEqual(actual.slice(0, 2), original.slice(0, 2));
     assert.deepEqual(actual.slice(3), original.slice(3));
   }
+});
+
+test('Tab on a directory keeps the real file picker in compact mode', async () => {
+  const normal = new CustomEditor(tui, editorTheme, keys);
+  const compact = new CompactEditor(tui, editorTheme, keys, { embedWorkingStatus: true }, () => 'footer');
+  for (const editor of [normal, compact]) {
+    editor.setAutocompleteProvider(new CombinedAutocompleteProvider([], process.cwd()));
+    editor.setText('./tests/');
+    editor.handleInput('\t');
+  }
+  // File completion is asynchronous; wait for the observable picker, with a deadline.
+  const deadline = Date.now() + 2000;
+  while ((!normal.isShowingAutocomplete() || !compact.isShowingAutocomplete()) && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  for (const editor of [normal, compact]) {
+    assert.equal(editor.getText(), './tests/');
+    assert.equal(editor.isShowingAutocomplete(), true);
+  }
+  assert.deepEqual(compact.render(80).slice(3), normal.render(80).slice(3));
+  assert.match(stripAnsi(compact.render(80).join('\n')), /compact\.test\.mjs/);
 });
 
 test('owned swaps preserve real collapsed paste contents across editor instances', () => {
