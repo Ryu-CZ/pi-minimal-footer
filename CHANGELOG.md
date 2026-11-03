@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-03
+
 ### Changed
 
 - Confirm compatibility with Pi 1.5.0, including compact editor mode, while retaining Pi 1.4.0 support.
@@ -332,7 +334,8 @@ First npm-ready release.
 
 [@mkaros2025]: https://github.com/mkaros2025
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.9.0...v0.10.0
