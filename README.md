@@ -25,7 +25,7 @@ An opinionated, compact, one-line status bar for [Pi](https://github.com/earendi
 
 ## Install
 
-Requires Node.js >=22.19.0. Interactive terminal UI only.
+Requires Node.js >=22.19.0. Interactive terminal UI only. Tested with Pi 1.4.0 and 1.5.0, including compact-editor mode.
 
 ```bash
 pi install npm:pi-minimal-footer
