@@ -56,6 +56,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
     "showProvider": false,
     "showThinking": false,
     "showUsage": true,
+    "showCost": true,
     "contextAsPercentage": false,
     "powerlineSeparator": true,
     "gitRefreshSeconds": 91,
@@ -70,7 +71,8 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 - `showProvider` prefixes the model with its provider id, e.g. `opencode-go/deepseek-v4.1-flash`; default `false`.
 - `showThinking` appends the thinking level for reasoning models, e.g. `deepseek-v4.1-flash high` or `thinking off`, in the theme's thinking-level color; default `false`.
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
-- `showUsage` shows subscription usage or estimated session cost; set it to `false` to hide both and stop quota queries. Default `true`.
+- `showUsage` shows subscription usage; set it to `false` to hide the bar and stop quota queries. Default `true`.
+- `showCost` shows estimated session cost when no subscription bar is shown. Set it to `false` to hide cost. Default `true`.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
 - `gitRefreshSeconds`: local refresh interval; `1`–`2147483` seconds; default `91`.
 - `gitFetch`: background fetch on startup, then roughly 5 minutes after each attempt completes; failures are silent; default `false`.
@@ -103,8 +105,8 @@ The context label turns yellow at 85% and red at 92% of Pi's configured compacti
 
 ### Usage or cost
 
-- **Subscription:** shows your allowance when available; this takes priority.
-- **Pay per token:** shows estimated session cost, e.g. `~$0.123` (USD)—not your account balance or final bill.
+- **Subscription:** shows your allowance when available and `showUsage` is enabled; this takes priority.
+- **Pay per token:** shows estimated session cost when `showCost` is enabled, e.g. `~$0.123` (USD)—not your account balance or final bill.
 - **Neither available:** hides the field, as with a local llama.cpp server without pricing.
 
 #### Subscription usage
@@ -141,7 +143,7 @@ Only one footer extension can be active. For plugin integration, see [VISION.md]
 
 ## Integrations
 
-Other extensions can control footer visibility, usage/cost, and compact mode for the current session without changing your saved settings. New sessions and `/reload` restore your preferences.
+Other extensions can control footer visibility, subscription usage, estimated cost, and compact mode for the current session without changing your saved settings. New sessions and `/reload` restore your preferences.
 
 For extension authors: [integration guide](VISION.md#session-only-footer-control).
 

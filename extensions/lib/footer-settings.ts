@@ -15,6 +15,7 @@ interface Settings {
     showProvider?: boolean;
     showThinking?: boolean;
     showUsage?: boolean;
+    showCost?: boolean;
     contextAsPercentage?: boolean;
     powerlineSeparator?: boolean;
     gitRefreshSeconds?: number;
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS = {
   showProvider: false,
   showThinking: false,
   showUsage: true,
+  showCost: true,
   contextAsPercentage: false,
   powerlineSeparator: true,
   gitRefreshSeconds: 91,

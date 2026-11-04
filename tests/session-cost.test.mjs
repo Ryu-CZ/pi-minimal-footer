@@ -57,7 +57,7 @@ test('unpriced local models and subscriptions hide cost even after earlier paid 
   }
 });
 
-test('priced zero-cost session shows estimate; usage control hides and restores it', async (t) => {
+test('priced zero-cost session shows estimate independently of usage control', async (t) => {
   const bus = createEventBus();
   const runtime = await installExtension(bus);
   const { ctx, ui } = makeContext();
@@ -66,22 +66,39 @@ test('priced zero-cost session shows estimate; usage control hides and restores 
   t.after(() => emit(runtime, 'session_shutdown', ctx));
   assert.match(stripAnsi(ui.component.render(120)[0]), /~\$0\.000/);
   bus.emit('pi-minimal-footer:set-usage-enabled', { enabled: false });
-  assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /\$/);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /~\$0\.000/);
   bus.emit('pi-minimal-footer:set-usage-enabled', { enabled: null });
   assert.match(stripAnsi(ui.component.render(120)[0]), /~\$0\.000/);
 });
 
-test('saved showUsage false hides the billing fallback', async (t) => {
-  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showUsage: false } }));
-  const runtime = await installExtension();
-  const { ctx, ui } = makeContext();
-  ctx.model.cost = rates;
-  await start(runtime, ctx);
-  t.after(() => emit(runtime, 'session_shutdown', ctx));
-  assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /\$/);
-});
+for (const compactEditor of [false, true]) {
+  for (const showUsage of [false, true]) {
+    for (const showCost of [false, true]) {
+      test(`cost visibility is independent: compact=${compactEditor}, usage=${showUsage}, cost=${showCost}`, async (t) => {
+        await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { compactEditor, showUsage, showCost } }));
+        const bus = createEventBus();
+        const runtime = await installExtension(bus);
+        const { ctx, ui } = makeContext();
+        ctx.model.cost = rates;
+        await start(runtime, ctx);
+        t.after(() => emit(runtime, 'session_shutdown', ctx));
+        const editor = compactEditor ? ui.getEditorComponent()(
+          { terminal: { rows: 30 }, requestRender() {} },
+          { borderColor: text => text, selectList: {} },
+          { matches: () => false },
+        ) : null;
+        const render = () => stripAnsi(editor ? editor.renderBottomBorder(120, 0) : ui.component.render(120)[0]);
+        assert.equal(render().includes('~$0.000'), showCost);
+        for (const enabled of [false, true, null]) {
+          bus.emit('pi-minimal-footer:set-usage-enabled', { enabled });
+          assert.equal(render().includes('~$0.000'), showCost);
+        }
+      });
+    }
+  }
+}
 
-test('compact editor shows the same cost fallback and respects usage control', async (t) => {
+test('compact editor shows the same cost fallback independently of usage control', async (t) => {
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { compactEditor: true } }));
   const bus = createEventBus();
   const runtime = await installExtension(bus);
@@ -97,18 +114,31 @@ test('compact editor shows the same cost fallback and respects usage control', a
   );
   assert.match(stripAnsi(editor.renderBottomBorder(120, 0)), /~\$0\.000/);
   bus.emit('pi-minimal-footer:set-usage-enabled', { enabled: false });
-  assert.doesNotMatch(stripAnsi(editor.renderBottomBorder(120, 0)), /\$/);
+  assert.match(stripAnsi(editor.renderBottomBorder(120, 0)), /~\$0\.000/);
 });
 
-test('available quota takes priority over a billing estimate', async (t) => {
-  fakeUsageFetch(t);
-  const runtime = await installExtension();
-  const { ctx, ui } = codexContext();
-  ctx.model.cost = rates;
-  await start(runtime, ctx);
-  t.after(() => emit(runtime, 'session_shutdown', ctx));
-  await settle();
-  const line = stripAnsi(ui.component.render(120)[0]);
-  assert.match(line, /\[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]/);
-  assert.doesNotMatch(line, /\$/);
-});
+for (const showCost of [false, true]) {
+  test(`available quota is shown with showCost=${showCost}`, async (t) => {
+    await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showCost } }));
+    const calls = fakeUsageFetch(t);
+    const bus = createEventBus();
+    const runtime = await installExtension(bus);
+    const { ctx, ui } = codexContext();
+    ctx.model.cost = rates;
+    await start(runtime, ctx);
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await settle();
+    const line = stripAnsi(ui.component.render(120)[0]);
+    assert.match(line, /\[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]/);
+    assert.doesNotMatch(line, /\$/);
+    const beforeCostControl = calls.length;
+    for (const enabled of [false, true, null]) {
+      bus.emit('pi-minimal-footer:set-cost-enabled', { enabled });
+      await settle();
+      const updated = stripAnsi(ui.component.render(120)[0]);
+      assert.match(updated, /\[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]/);
+      assert.doesNotMatch(updated, /\$/);
+      assert.equal(calls.length, beforeCostControl, 'cost control does not restart quota queries');
+    }
+  });
+}

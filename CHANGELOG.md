@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Hide estimated session cost separately with `showCost: false`. `showUsage` now controls only subscription usage.
+- Session-only cost visibility control via `pi-minimal-footer:set-cost-enabled` (`true`/`false` override, `null` restores `showCost`).
+
 ## [0.12.0] - 2026-11-04
 
 ### Added

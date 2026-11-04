@@ -69,7 +69,7 @@ Context colors use Pi's effective compaction trigger (`contextWindow - reserveTo
 
 ## Usage and cost priority
 
-Show available subscription quota first; otherwise show estimated PAYG session cost as `~$0.123`; otherwise omit the field. Unpriced local models (including llama.cpp) and subscription models without quota must not show a misleading API estimate. `showUsage` and session-only usage control hide both alternatives.
+Show available subscription quota first; otherwise show estimated PAYG session cost as `~$0.123`; otherwise omit the field. Unpriced local models (including llama.cpp) and subscription models without quota must not show a misleading API estimate. `showUsage` and session-only usage control govern only the subscription bar and quota queries. `showCost` and session-only cost control independently govern the cost fallback. Both settings default to `true`; disabling quota display allows an eligible cost estimate, but never makes subscription-backed models eligible.
 
 Cost reuses Pi's persisted session usage totals, including compaction, summaries and tool usage, rather than querying billing endpoints. Require positive configured model pricing and exclude subscription-backed authentication, Kimi Coding and OpenCode Go. Sum stored costs across the session like Pi's standard footer, not only the current model or post-compaction context. Refresh on footer state updates, not every render. Keep the amount whole or hide it when it cannot fit; never substitute cost merely because an available quota cannot fit.
 
@@ -176,7 +176,7 @@ Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` re
 
 #### Session-only footer control
 
-Footer and usage controls apply to both layouts. Compact mode has its own session-only control below. None bypass editor-ownership safeguards.
+Footer, usage, and cost controls apply to both layouts. Compact mode has its own session-only control below. None bypass editor-ownership safeguards.
 
 Extensions can temporarily override footer visibility without changing the user's saved setting:
 
@@ -207,7 +207,7 @@ pi.events.emit("pi-minimal-footer:set-compact-enabled", { enabled: null });  // 
 
 #### Session-only usage control
 
-Control the usage/cost field independently of footer visibility:
+Control the subscription bar and quota queries independently of footer visibility. This does not affect the `showCost` setting or cost fallback:
 
 ```typescript
 pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: false }); // suppress usage
@@ -222,6 +222,22 @@ pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: null });  // re
 - Changes request a redraw without reinstalling the renderer or refreshing Git.
 - The override survives footer toggles and reinstallation, but resets on session start/shutdown and extension reload. Clearing it uses the cached setting; settings reload at the normal installation boundaries.
 - No automatic host detection. A coordinating extension can suppress duplicate quota reporting, for example when a terminal plugin already displays usage.
+
+#### Session-only cost control
+
+Control the estimated session cost fallback independently of subscription usage:
+
+```typescript
+pi.events.emit("pi-minimal-footer:set-cost-enabled", { enabled: false }); // hide cost
+pi.events.emit("pi-minimal-footer:set-cost-enabled", { enabled: true });  // allow cost
+pi.events.emit("pi-minimal-footer:set-cost-enabled", { enabled: null });  // restore saved showCost
+```
+
+- A boolean overrides `minFooter.showCost`; `null` clears the override using the cached setting. No settings writes or notifications.
+- Emit after this extension's `session_start` handler. Events outside an active session and invalid payloads are ignored. Repeated override values do nothing.
+- Cost remains a fallback: available enabled subscription usage takes priority, and unpriced or subscription-backed models remain ineligible.
+- Changes only request a redraw. They do not affect quota queries, refresh Git, reinstall the renderer, enable the footer, or reclaim another extension's footer/editor.
+- The override applies to both layouts, survives footer toggles and reinstallation, and resets on session start/shutdown and extension reload.
 
 #### Potential state reporting (not implemented)
 
@@ -245,7 +261,7 @@ pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: null });  // re
 - `extensions/lib/usage-providers.ts`: authentication, endpoint selection, and named private provider parsers. `parseUsageWindows` gates supported endpoints, dispatches parsing with an explicit snapshot, and centrally distinguishes valid windows, absence, and malformed responses.
 - `tests/min-footer.test.mjs`: settings, session lifecycle, and context-format integration coverage.
 - `tests/compact.test.mjs`: compact borders, terminal widths, autocomplete preservation, editor ownership, and collapsed-paste contents across swaps.
-- `tests/preference-control.test.mjs`: session-only footer and usage controls in normal and compact editor layouts.
+- `tests/preference-control.test.mjs`: session-only footer, usage, and cost controls in normal and compact editor layouts.
 - `tests/layout.test.mjs`: layout, ANSI/Unicode, and usage bar/reset formatting.
 - `tests/git.test.mjs`: fetch jitter, live ownership, stale queries across refresh/restart/directory changes, and Git highlighting with a temporary repository.
 - `tests/usage-lifecycle.test.mjs`: usage authentication, polling, cancellation, passive updates, and provider integration.
@@ -253,7 +269,7 @@ pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: null });  // re
 - `tests/usage-parsing.test.mjs`: provider parsing.
 - `tests/persistence-order.test.mjs`: real `AgentSession` message persistence and post-persistence footer usage.
 
-Settings live under `minFooter` in Pi's configured agent directory. Reload them on session start, footer commands and effective footer-control changes; usage-control changes and ordinary refreshes use cached settings. Preserve unrelated settings on writes. Only install the footer in interactive terminal mode.
+Settings live under `minFooter` in Pi's configured agent directory. Reload them on session start, footer commands and effective footer-control changes; usage/cost-control changes and ordinary refreshes use cached settings. Preserve unrelated settings on writes. Only install the footer in interactive terminal mode.
 
 ### Checking changes
 

@@ -117,6 +117,7 @@ export default function (pi: ExtensionAPI) {
   let config = readConfig();
   let enabled = config.enabled !== false;
   let usageEnabledOverride: boolean | undefined;
+  let costEnabledOverride: boolean | undefined;
   let compactEnabledOverride: boolean | undefined;
   let currentCtx: ExtensionContext | undefined;
   const state: FooterState = { cwd: process.cwd(), provider: "", model: "no-model", thinking: "", context: "?", contextColor: "dim" };
@@ -201,9 +202,11 @@ export default function (pi: ExtensionAPI) {
             model: renderModel(theme, state, config),
             context: config.showContext ? theme.fg(state.contextColor, theme.bold(state.context)) : "",
             usage: (available, maxCells = BASE_BAR_CELLS) => {
-              if (!(usageEnabledOverride ?? (config.showUsage !== false))) return null;
-              if (usageLimits.hasUsage()) return usageLimits.line(available, theme, maxCells);
-              return state.cost && state.cost.length <= available ? theme.fg("dim", state.cost) : null;
+              if ((usageEnabledOverride ?? (config.showUsage !== false)) && usageLimits.hasUsage()) {
+                return usageLimits.line(available, theme, maxCells);
+              }
+              return (costEnabledOverride ?? (config.showCost !== false)) && state.cost && state.cost.length <= available
+                ? theme.fg("dim", state.cost) : null;
             },
             statusSeparator,
             separatorColor,
@@ -263,6 +266,15 @@ export default function (pi: ExtensionAPI) {
     requestRender?.();
   });
 
+  pi.events.on("pi-minimal-footer:set-cost-enabled", (data) => {
+    if (!currentCtx || typeof data !== "object" || data === null ||
+        !("enabled" in data) || (typeof data.enabled !== "boolean" && data.enabled !== null)) return;
+    const override = data.enabled ?? undefined;
+    if (costEnabledOverride === override) return;
+    costEnabledOverride = override;
+    requestRender?.();
+  });
+
   pi.events.on("pi-minimal-footer:set-compact-enabled", (data) => {
     if (!currentCtx || typeof data !== "object" || data === null ||
         !("enabled" in data) || (typeof data.enabled !== "boolean" && data.enabled !== null)) return;
@@ -279,6 +291,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     compactEnabledOverride = undefined;
     usageEnabledOverride = undefined;
+    costEnabledOverride = undefined;
     currentCtx = ctx;
     config = readConfig();
     enabled = config.enabled !== false;
@@ -327,6 +340,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_shutdown", async () => {
     compactEnabledOverride = undefined;
     usageEnabledOverride = undefined;
+    costEnabledOverride = undefined;
     currentCtx = undefined;
     usageLimits.stop();
     disposeFooter?.();

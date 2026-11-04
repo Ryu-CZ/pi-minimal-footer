@@ -72,6 +72,68 @@ for (const compact of [false, true]) {
     assert.equal(await readFile(path, 'utf8'), saved);
   });
 
+  for (const savedCost of [false, true]) {
+    test(`${mode}: cost override supports true/false/null with saved ${savedCost}`, async (t) => {
+      const path = join(agentDir, 'settings.json');
+      const saved = JSON.stringify({ unrelated: 42, minFooter: { compactEditor: compact, showCost: savedCost, showUsage: false } });
+      await writeFile(path, saved);
+      const bus = createEventBus();
+      const runtime = await installExtension(bus);
+      let renders = 0;
+      const { ctx, ui } = makeContext({ tui: { requestRender() { renders++; } } });
+      ctx.model.cost = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 };
+      t.after(() => emit(runtime, 'session_shutdown', ctx));
+      const cost = value => bus.emit('pi-minimal-footer:set-cost-enabled', { enabled: value });
+      const enabled = value => bus.emit('pi-minimal-footer:set-enabled', { enabled: value });
+      const hasCost = () => statusLine(ui).includes('~$0.000');
+
+      cost(!savedCost);
+      await start(runtime, ctx);
+      assert.equal(hasCost(), savedCost, 'events before startup are ignored');
+      const component = ui.component;
+      const editorFactory = ui.getEditorComponent();
+      const swaps = ui.editorSwaps;
+
+      cost(true);
+      assert.equal(hasCost(), true);
+      const beforeNoop = renders;
+      cost(true);
+      for (const invalid of [null, {}, false, { enabled: 'false' }, { enabled: 0 }, { enabled: undefined }]) {
+        bus.emit('pi-minimal-footer:set-cost-enabled', invalid);
+      }
+      assert.equal(renders, beforeNoop);
+      assert.equal(hasCost(), true);
+      cost(false);
+      assert.equal(hasCost(), false);
+      assert.ok(renders > beforeNoop, 'cost changes request a redraw');
+      assert.equal(ui.component, component);
+      assert.equal(ui.getEditorComponent(), editorFactory);
+      assert.equal(ui.editorSwaps, swaps);
+
+      await emit(runtime, 'turn_end', ctx);
+      assert.equal(hasCost(), false, 'ordinary refresh preserves the override');
+      enabled(false);
+      cost(true);
+      assert.equal(ui.component, undefined, 'cost control never installs a footer');
+      enabled(true);
+      assert.equal(hasCost(), true, 'footer reinstallation preserves the override');
+      cost(null);
+      assert.equal(hasCost(), savedCost);
+
+      cost(!savedCost);
+      await start(runtime, ctx, 'reload');
+      assert.equal(hasCost(), savedCost, 'session start clears the override');
+      ui.setFooter(() => ({ render: () => ['other footer'] }));
+      cost(true);
+      assert.deepEqual(ui.component.render(120), ['other footer'], 'cost control never reclaims a replaced footer');
+      await emit(runtime, 'session_shutdown', ctx);
+      cost(!savedCost);
+      await start(runtime, ctx);
+      assert.equal(hasCost(), savedCost, 'events after shutdown are ignored');
+      assert.equal(await readFile(path, 'utf8'), saved, 'cost control never persists settings');
+    });
+  }
+
   for (const savedUsage of [false, true]) {
     test(`${mode}: usage override supports true/false/null with saved ${savedUsage}`, async (t) => {
       t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
