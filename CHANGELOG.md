@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Show estimated session cost when you pay per token. Subscription usage still takes priority; local servers without pricing show neither.
+
 ## [0.11.1] - 2026-11-03
 
 ### Changed

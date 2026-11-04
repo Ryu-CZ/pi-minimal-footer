@@ -10,7 +10,7 @@ The [README](README.md) is the user manual. This document records current design
 
 - Directory and Git branch form the left group, separated by ``.
 - Each extension status is its own `` tab. Preserve the supplied text except for replacing line breaks and tabs with spaces; do not invent status labels, parentheses, or pipes.
-- Model, context, and subscription usage form the rightmost group, separated by ` · `. Model identifies the running engine; context describes its usage; the usage bar stays anchored at the right edge.
+- Model, context, and usage or cost form the rightmost group, separated by ` · `. Model identifies the running engine; context describes its usage; the usage bar stays anchored at the right edge.
 - Powerline separators are dim in normal mode and use the thinking-level border color in compact mode. `powerlineSeparator: false` replaces them with a single space. Font availability cannot be detected reliably.
 - Shorten paths by dropping parent directories first, prefixed with `…/`. Keep the current directory name intact when possible; truncate it only when it cannot fit alone. Apply path color after shortening.
 - Measure terminal columns with `visibleWidth`, not string length. Preserve ANSI styling and wide-character accounting when truncating.
@@ -66,6 +66,12 @@ Context colors use Pi's effective compaction trigger (`contextWindow - reserveTo
 - Use the theme's normal text foreground while unsynced, otherwise dim. A count change pulses the whole Git section (icon, branch, and counts) bold for one second to call attention without persistent emphasis or turn-count bookkeeping; this is independent of synced/unsynced foreground color. Further changes restart the timer. Expiry requests a redraw even while idle. User submissions and tool turns do not affect the pulse. Dispose cancels the timer.
 - Initial loading and working-directory changes establish an unhighlighted baseline. Zero counts hide the arrows entirely.
 - `minFooter.gitFetch` (default `false`) opts into asynchronous `git fetch --quiet` on footer startup and every five minutes with ±⅛ jitter (262.5–337.5 seconds), sampled after each completed attempt. Jitter spreads network load across sessions; local divergence polling remains independent. Disable interactive credential prompts; failures are silent and retry at the next interval. `gitFetchTimeoutSeconds` accepts integer seconds from 1 through 2,147,483 (Node's maximum timer delay), default/fallback 17. Successful fetches refresh divergence. Footer disposal clears the timer and aborts an in-flight fetch; only interactive sessions with an active footer fetch.
+
+## Usage and cost priority
+
+Show available subscription quota first; otherwise show estimated PAYG session cost as `~$0.123`; otherwise omit the field. Unpriced local models (including llama.cpp) and subscription models without quota must not show a misleading API estimate. `showUsage` and session-only usage control hide both alternatives.
+
+Cost reuses Pi's persisted session usage totals, including compaction, summaries and tool usage, rather than querying billing endpoints. Require positive configured model pricing and exclude subscription-backed authentication, Kimi Coding and OpenCode Go. Sum stored costs across the session like Pi's standard footer, not only the current model or post-compaction context. Refresh on footer state updates, not every render. Keep the amount whole or hide it when it cannot fit; never substitute cost merely because an available quota cannot fit.
 
 ## Subscription usage contract
 
@@ -201,7 +207,7 @@ pi.events.emit("pi-minimal-footer:set-compact-enabled", { enabled: null });  // 
 
 #### Session-only usage control
 
-Control subscription usage independently of footer visibility:
+Control the usage/cost field independently of footer visibility:
 
 ```typescript
 pi.events.emit("pi-minimal-footer:set-usage-enabled", { enabled: false }); // suppress usage

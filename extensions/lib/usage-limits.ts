@@ -252,6 +252,10 @@ export class UsageLimits {
     }
   }
 
+  hasUsage(): boolean {
+    return this.selectedWindow() !== null;
+  }
+
   line(width: number, theme: Theme, maxCells = MAX_BAR_CELLS): string | null {
     const window = this.selectedWindow()?.[1];
     if (!this.ctx || !window) return null;

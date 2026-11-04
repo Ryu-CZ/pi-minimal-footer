@@ -18,6 +18,7 @@ import { BASE_BAR_CELLS, MAX_BAR_CELLS, UsageLimits } from "./lib/usage-limits.j
 import { readConfig, writeEnabled, type FooterSettings } from "./lib/footer-settings.js";
 import { buildLine, type LineParts } from "./lib/footer-layout.js";
 import { GitStatus } from "./lib/git-status.js";
+import { sessionCost } from "./lib/session-cost.js";
 import { CompactEditorController } from "./lib/compact-editor.js";
 
 // ── Formatting helpers ────────────────────────────────────────────────
@@ -52,6 +53,7 @@ interface FooterState {
   thinking: string;
   context: string;
   contextColor: "dim" | "warning" | "error";
+  cost?: string | null;
 }
 
 /** Pi ships one theme color per thinking level. */
@@ -82,6 +84,7 @@ function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSe
   const cwd = ctx.cwd ?? process.cwd();
   state.cwd = cwd;
   git.setCwd(cwd);
+  state.cost = sessionCost(ctx);
   state.provider = ctx.model?.provider ?? "";
   state.model = ctx.model?.id ?? "no-model";
   // Pi reports a level for every model; only reasoning models show one.
@@ -197,7 +200,11 @@ export default function (pi: ExtensionAPI) {
             branch: branchText ? theme.fg(git.sync ? "text" : "dim", gitText) : "",
             model: renderModel(theme, state, config),
             context: config.showContext ? theme.fg(state.contextColor, theme.bold(state.context)) : "",
-            usage: (available, maxCells = BASE_BAR_CELLS) => usageLimits.line(available, theme, maxCells),
+            usage: (available, maxCells = BASE_BAR_CELLS) => {
+              if (!(usageEnabledOverride ?? (config.showUsage !== false))) return null;
+              if (usageLimits.hasUsage()) return usageLimits.line(available, theme, maxCells);
+              return state.cost && state.cost.length <= available ? theme.fg("dim", state.cost) : null;
+            },
             statusSeparator,
             separatorColor,
             locationSeparator: config.powerlineSeparator ? separatorColor("  ") : " ",

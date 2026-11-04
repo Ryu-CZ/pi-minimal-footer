@@ -21,7 +21,7 @@ An opinionated, compact, one-line status bar for [Pi](https://github.com/earendi
 - Extension statuses: `🧠 Karpathy  🪽 Icarus`
 - Model: `model`
 - Context usage: `12k/256k` (default), or `4.7%/256k` with `contextAsPercentage: true`
-- Subscription usage bar with reset time: `[⣿⣿⣿⣿⣄⠀⠀⠀⠀⠀]↻1d8h`
+- Subscription usage: `[⣿⣿⣿⣿⣄⠀⠀⠀⠀⠀]↻1d8h`, or estimated session cost: `~$0.123`
 
 ## Install
 
@@ -70,7 +70,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 - `showProvider` prefixes the model with its provider id, e.g. `opencode-go/deepseek-v4.1-flash`; default `false`.
 - `showThinking` appends the thinking level for reasoning models, e.g. `deepseek-v4.1-flash high` or `thinking off`, in the theme's thinking-level color; default `false`.
 - `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
-- `showUsage` enables this footer's own provider usage queries and the subscription usage bar; set it to `false` when another extension already publishes quota; default `true`.
+- `showUsage` shows subscription usage or estimated session cost; set it to `false` to hide both and stop quota queries. Default `true`.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
 - `gitRefreshSeconds`: local refresh interval; `1`–`2147483` seconds; default `91`.
 - `gitFetch`: background fetch on startup, then roughly 5 minutes after each attempt completes; failures are silent; default `false`.
@@ -101,7 +101,13 @@ Counts require a configured upstream. Unsynced branches use normal text color; s
 
 The context label turns yellow at 85% and red at 92% of Pi's configured compaction threshold, in either display mode.
 
-### Subscription usage
+### Usage or cost
+
+- **Subscription:** shows your allowance when available; this takes priority.
+- **Pay per token:** shows estimated session cost, e.g. `~$0.123` (USD)—not your account balance or final bill.
+- **Neither available:** hides the field, as with a local llama.cpp server without pricing.
+
+#### Subscription usage
 
 `[⣿⣿⣿⣿⣄⠀⠀⠀⠀⠀]↻1d8h` shows **subscription allowance used** (44% here), not context usage.
 
@@ -112,13 +118,13 @@ The context label turns yellow at 85% and red at 92% of Pi's configured compacti
 - Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 - Virtual/routed models show model and context usage, but no subscription bar.
 
-#### Adapters
+#### Supported subscriptions
 
-Adapters use Pi's existing credentials; ordinary Claude API keys do not expose subscription usage.
+Uses your existing Pi login; ordinary Claude API keys do not expose subscription usage.
 
 *Authenticated endpoints remain unverified live; see [verification limits](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md).*
 
-Implemented adapters:
+Supported services:
  - **OpenAI Codex**
  - **Claude OAuth**
  - **GitHub Copilot**
@@ -133,16 +139,11 @@ Provided by other extensions; hidden with `showSkills: false`. Narrow terminals 
 
 Only one footer extension can be active. For plugin integration, see [VISION.md](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#plugin-integration).
 
-## Programmatic control
+## Integrations
 
-Other Pi extensions can control this footer without changing saved preferences:
+Other extensions can control footer visibility, usage/cost, and compact mode for the current session without changing your saved settings. New sessions and `/reload` restore your preferences.
 
-- **Footer** (`pi-minimal-footer:set-enabled`): enable or disable for the current session.
-- **Subscription usage** (`pi-minimal-footer:set-usage-enabled`): show or hide the bar and its background queries independently—useful when your terminal already shows quota.
-- **Compact editor** (`pi-minimal-footer:set-compact-enabled`): switch between the normal footer and compact editor with `{ enabled: true | false }`; use `{ enabled: null }` to restore the saved setting.
-- New sessions and `/reload` restore saved preferences.
-
-Event API and integration rules: [developer guide](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#session-only-footer-control).
+For extension authors: [integration guide](VISION.md#session-only-footer-control).
 
 ## Development & design
 
