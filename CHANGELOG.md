@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Invalid boolean settings now use their defaults instead of unexpectedly hiding fields or changing behavior.
 - Footer toggles no longer overwrite unreadable or malformed shared settings files; the session toggle still works.
 
 ## [0.13.0] - 2026-11-04

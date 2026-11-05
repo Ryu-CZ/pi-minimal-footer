@@ -244,6 +244,33 @@ test('normalizes timer-bound settings when enabling the footer', async () => {
   }
 });
 
+test('boolean settings use defaults for invalid values and preserve valid booleans', async () => {
+  const defaults = {
+    compactEditor: false, showGitBranch: true, showSkills: true, showPath: true,
+    showModel: true, showContext: true, showProvider: false, showThinking: false,
+    showUsage: true, showCost: true, contextAsPercentage: false,
+    powerlineSeparator: true, gitFetch: false,
+  };
+  const path = join(agentDir, 'settings.json');
+  for (const value of [null, 'false', 0, 1, [], {}, true, false]) {
+    await writeFile(path, JSON.stringify({ minFooter: Object.fromEntries(Object.keys(defaults).map(key => [key, value])) }));
+    const runtime = await installExtension();
+    await runtime.commands.get('minfooter').handler('on', makeContext({ mode: 'print' }).ctx);
+    const saved = JSON.parse(await readFile(path, 'utf8')).minFooter;
+    for (const [key, fallback] of Object.entries(defaults)) {
+      assert.equal(saved[key], typeof value === 'boolean' ? value : fallback, key);
+    }
+  }
+  for (const minFooter of [null, [], 'false', 42, true, { enabled: null }, { enabled: 'false' }]) {
+    await writeFile(path, JSON.stringify({ unrelated: 7, minFooter }));
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext();
+    await start(runtime, ctx);
+    assert.ok(ui.component, 'invalid enabled/container uses enabled default');
+    await emit(runtime, 'session_shutdown', ctx);
+  }
+});
+
 test('each real loader call creates isolated lifecycle handlers without message_end', async () => {
   const ext = await installExtension();
   const next = await installExtension();

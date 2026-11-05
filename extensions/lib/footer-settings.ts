@@ -71,7 +71,17 @@ function isTimerSeconds(value: unknown): value is number {
 }
 
 function configFrom(settings: Settings): FooterSettings {
-  const config = { ...DEFAULT_SETTINGS, ...settings.minFooter };
+  const preferences = settings.minFooter;
+  const config = {
+    ...DEFAULT_SETTINGS,
+    ...(preferences !== null && typeof preferences === "object" && !Array.isArray(preferences) ? preferences : {}),
+  };
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof typeof DEFAULT_SETTINGS)[]) {
+    const fallback = DEFAULT_SETTINGS[key];
+    if (typeof fallback === "boolean" && typeof config[key] !== "boolean") {
+      Object.assign(config, { [key]: fallback });
+    }
+  }
   if (!isTimerSeconds(config.gitRefreshSeconds)) {
     config.gitRefreshSeconds = DEFAULT_SETTINGS.gitRefreshSeconds;
   }
