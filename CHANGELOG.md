@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-05
+
 ### Added
 
 - `/minfooter status` shows effective settings, active layout, and cached quota diagnostics without changing settings or making requests.
@@ -362,7 +364,8 @@ First npm-ready release.
 
 [@mkaros2025]: https://github.com/mkaros2025
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.11.0...v0.11.1
