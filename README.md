@@ -25,7 +25,7 @@ An opinionated, compact, one-line status bar for [Pi](https://github.com/earendi
 
 ## Install
 
-Requires Node.js >=22.19.0. Interactive terminal UI only. Tested with Pi 1.4.0 and 1.5.0, including compact-editor mode.
+Requires Node.js >=22.19.0. Interactive terminal UI only. Compatibility CI covers Pi 1.0.3, 1.1.0, 1.3.0, 1.4.0, and 1.5.0, including compact-editor mode. Declared support is Pi >=1.0.3 <1.6.0; intervening versions are not individually verified.
 
 ```bash
 pi install npm:pi-minimal-footer
@@ -89,7 +89,7 @@ Set `"compactEditor": true` to replace both the footer and prompt editor, embedd
 
 ![Compact editor with high-thinking purple borders and separators, 12k/256k context, and 44% subscription usage](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/compact-preview.png)
 
-See [compatibility and layout-switching details](VISION.md#compact-editor-contract).
+See [compatibility and layout-switching details](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#compact-editor-contract).
 
 ## Reading the footer
 
@@ -145,7 +145,7 @@ Only one footer extension can be active. For plugin integration, see [VISION.md]
 
 Other extensions can control footer visibility, subscription usage, estimated cost, and compact mode for the current session without changing your saved settings. New sessions and `/reload` restore your preferences.
 
-For extension authors: [integration guide](VISION.md#session-only-footer-control).
+For extension authors: [integration guide](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#session-only-footer-control).
 
 ## Development & design
 

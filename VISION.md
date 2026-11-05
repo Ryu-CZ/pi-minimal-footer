@@ -141,7 +141,7 @@ Font coverage and terminal column widths remain unverified. Check the candidates
 
 ## Local development
 
-Requires Node.js >=22.19.0. Local dependencies pin Pi 1.0.3; compatibility CI targets Pi 1.0.3, 1.1.0, and 1.3.0 on Node.js 22.19.0. The compact editor suite has also passed against Pi 1.4.0 locally. Provider requests are mocked; version coverage does not guarantee compatibility with every intervening or future release.
+Requires Node.js >=22.19.0. Local dependencies pin Pi 1.5.0; compatibility CI targets Pi 1.0.3, 1.1.0, 1.3.0, 1.4.0, and 1.5.0 on Node.js 22.19.0. Peer dependencies declare Pi >=1.0.3 <1.6.0. Provider requests are mocked; version coverage does not guarantee compatibility with every intervening or future release.
 
 ```bash
 npm ci

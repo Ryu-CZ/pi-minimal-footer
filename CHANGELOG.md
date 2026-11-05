@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Declare Pi support as >=1.0.3 <1.6.0, matching the compatibility CI version families.
+
 ### Fixed
 
+- Developer-guide links now work from the installed npm README.
 - Invalid boolean settings now use their defaults instead of unexpectedly hiding fields or changing behavior.
 - Footer toggles no longer overwrite unreadable or malformed shared settings files; the session toggle still works.
 
