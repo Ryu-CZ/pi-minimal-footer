@@ -16,6 +16,9 @@ test('status and unknown arguments never toggle, write settings, or replace the 
   const renderer = ui.component;
   await runtime.commands.get('minfooter').handler('status', ctx);
   assert.match(messages.at(-1), /Layout: normal/);
+  for (const setting of ['contextAsPercentage=false', 'powerlineSeparator=true', 'gitFetch=false', 'gitRefreshSeconds=91', 'gitFetchTimeoutSeconds=17', 'maxUsageBarCells=10']) {
+    assert.ok(messages.at(-1).includes(setting), setting);
+  }
   assert.match(messages.pop(), /unsupported provider or custom endpoint/);
   for (const arg of ['help', 'of', 'on extra']) {
     await runtime.commands.get('minfooter').handler(arg, ctx);
