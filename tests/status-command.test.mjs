@@ -16,6 +16,8 @@ test('status and unknown arguments never toggle, write settings, or replace the 
   const renderer = ui.component;
   await runtime.commands.get('minfooter').handler('status', ctx);
   assert.match(messages.at(-1), /Layout: normal/);
+  assert.match(messages.at(-1), /^Display: showPath=true[^\n]*maxUsageBarCells=10$/m);
+  assert.match(messages.at(-1), /^Git: showGitBranch=true, gitFetch=false, gitRefreshSeconds=91, gitFetchTimeoutSeconds=17$/m);
   for (const setting of ['contextAsPercentage=false', 'powerlineSeparator=true', 'gitFetch=false', 'gitRefreshSeconds=91', 'gitFetchTimeoutSeconds=17', 'maxUsageBarCells=10']) {
     assert.ok(messages.at(-1).includes(setting), setting);
   }

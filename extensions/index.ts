@@ -363,8 +363,10 @@ export default function (pi: ExtensionAPI) {
           `Compact requested: ${(compactEnabledOverride ?? config.compactEditor) ? "yes" : "no"}`,
           `Usage: ${!usageEnabled ? "disabled" : !owned ? "inactive (footer not owned)" : usageLimits.status()}`,
           `Cost: ${costEnabled ? "enabled (fallback)" : "disabled"}`,
-          `Settings: ${(["showPath", "showGitBranch", "showSkills", "showModel", "showProvider", "showThinking", "showContext",
-            "contextAsPercentage", "powerlineSeparator", "gitFetch", "gitRefreshSeconds", "gitFetchTimeoutSeconds", "maxUsageBarCells"] as const)
+          `Display: ${(["showPath", "showSkills", "showModel", "showProvider", "showThinking", "showContext",
+            "contextAsPercentage", "powerlineSeparator", "maxUsageBarCells"] as const)
+            .map((key) => `${key}=${config[key]}`).join(", ")}`,
+          `Git: ${(["showGitBranch", "gitFetch", "gitRefreshSeconds", "gitFetchTimeoutSeconds"] as const)
             .map((key) => `${key}=${config[key]}`).join(", ")}`,
         ].join("\n"), "info");
         return;

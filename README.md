@@ -92,6 +92,8 @@ Set `"compactEditor": true` to replace both the footer and prompt editor, embedd
 
 ![Compact editor with high-thinking purple borders and separators, 12k/256k context, and 44% subscription usage](https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/main/media/compact-preview.png)
 
+Switching layouts preserves draft text, but not cursor position or undo state. Prefer switching before composing a prompt.
+
 See [compatibility and layout-switching details](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#compact-editor-contract).
 
 ## Reading the footer
