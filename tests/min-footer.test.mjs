@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { agentDir, createEventBus, theme, makeContext, provider, stripAnsi, installExtension, start, emit } from './helpers/footer-fixture.mjs';
 
@@ -321,7 +323,7 @@ test('isolated settings preserve unrelated options and toggle/reload boundaries'
   assert.ok(ui.factory);
   const initial = stripAnsi(ui.component.render(120)[0]);
   assert.doesNotMatch(initial, /test-model/);
-  await writeFile(settingsFile, JSON.stringify({ unrelated: 7, minFooter: { enabled: true, showModel: true }}));
+  await writeFile(settingsFile, JSON.stringify({ unrelated: 7, minFooter: { enabled: true, showModel: true, futureOption: { keep: true } }}));
   await emit(runtime, 'turn_end', ctx);
   assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /test-model/, 'ordinary refresh retains cached feature options');
   for (const reason of ['new', 'resume', 'fork', 'reload']) {
@@ -331,22 +333,75 @@ test('isolated settings preserve unrelated options and toggle/reload boundaries'
   await runtime.commands.get('minfooter').handler('off', ctx);
   const off = JSON.parse(await readFile(settingsFile, 'utf8'));
   assert.equal(off.unrelated, 7); assert.equal(off.minFooter.enabled, false); assert.equal(off.minFooter.showModel, true);
+  assert.deepEqual(off.minFooter.futureOption, { keep: true });
   await runtime.commands.get('minfooter').handler('on', ctx);
   const on = JSON.parse(await readFile(settingsFile, 'utf8'));
   assert.equal(on.unrelated, 7); assert.equal(on.minFooter.enabled, true);
+  assert.deepEqual(on.minFooter.futureOption, { keep: true });
 });
 
-test('invalid settings roots fall back to defaults and remain toggleable', async () => {
+test('invalid settings roots fall back to defaults but toggles preserve the original file', async (t) => {
   for (const contents of ['null', '[]', 'true', '42', '"settings"', '{invalid json']) {
     await writeFile(join(agentDir, 'settings.json'), contents);
     const runtime = await installExtension();
     const { ctx, ui } = makeContext();
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
     await start(runtime, ctx);
     assert.match(stripAnsi(ui.component.render(120)[0]), /test-model · 12k\/128k/);
-    await runtime.commands.get('minfooter').handler('off', ctx);
-    const settings = JSON.parse(await readFile(join(agentDir, 'settings.json'), 'utf8'));
-    assert.equal(settings.minFooter.enabled, false);
+    for (const state of ['off', 'on']) {
+      await runtime.commands.get('minfooter').handler(state, ctx);
+      assert.deepEqual(await readFile(join(agentDir, 'settings.json')), Buffer.from(contents));
+      assert.equal(Boolean(ui.component), state === 'on', 'the session toggle still works');
+    }
     await emit(runtime, 'session_shutdown', ctx);
+  }
+});
+
+test('failed settings reads never authorize a write but session toggles still work', async (t) => {
+  const path = join(agentDir, 'settings.json');
+  const contents = Buffer.from('{"unrelated":"keep","minFooter":{"enabled":true}}\n');
+  await writeFile(path, contents);
+  let failReads = false;
+  let failedReads = 0;
+  const original = fs.readFileSync;
+  const mock = t.mock.method(fs, 'readFileSync', function (file, ...args) {
+    if (file === path && failReads) {
+      failedReads++;
+      throw Object.assign(new Error('read failed'), { code: 'EACCES' });
+    }
+    return original.call(this, file, ...args);
+  });
+  // The real loader captures named builtin exports when importing the extension.
+  syncBuiltinESMExports();
+  t.after(() => { mock.mock.restore(); syncBuiltinESMExports(); });
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx);
+  assert.ok(ui.component);
+  failReads = true;
+  for (const state of ['off', 'on']) {
+    const before = failedReads;
+    await runtime.commands.get('minfooter').handler(state, ctx);
+    assert.ok(failedReads > before, 'the extension must hit the simulated read failure');
+    assert.deepEqual(await readFile(path), contents, 'failed reads must preserve the original bytes');
+    assert.equal(failedReads - before, 2, 'one persistence read and one configuration reload per command');
+    assert.equal(Boolean(ui.component), state === 'on', 'the session toggle still works');
+  }
+});
+
+test('missing settings files can be created by a toggle', async (t) => {
+  const path = join(agentDir, 'settings.json');
+  await unlink(path);
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx);
+  assert.ok(ui.component, 'missing settings use defaults');
+  for (const state of ['off', 'on']) {
+    await runtime.commands.get('minfooter').handler(state, ctx);
+    assert.equal(JSON.parse(await readFile(path, 'utf8')).minFooter.enabled, state === 'on');
+    assert.equal(Boolean(ui.component), state === 'on');
   }
 });
 

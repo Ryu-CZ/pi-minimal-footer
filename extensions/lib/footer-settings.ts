@@ -1,5 +1,5 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { MAX_BAR_CELLS } from "./usage-limits.js";
 
@@ -54,26 +54,15 @@ function settingsPath(): string {
   return join(getAgentDir(), "settings.json");
 }
 
-function readSettings(): Settings {
+function readSettings(): Settings | null {
   try {
-    if (!existsSync(settingsPath())) return {};
     const settings: unknown = JSON.parse(readFileSync(settingsPath(), "utf-8"));
     // Valid JSON can still be null or a scalar; a broken preference file must not prevent loading.
-    if (settings === null || typeof settings !== "object" || Array.isArray(settings)) return {};
+    if (settings === null || typeof settings !== "object" || Array.isArray(settings)) return null;
     return settings as Settings;
-  } catch {
-    return {};
-  }
-}
-
-function writeSettings(patch: Partial<Settings>): void {
-  try {
-    const path = settingsPath();
-    mkdirSync(dirname(path), { recursive: true });
-    const current = readSettings();
-    writeFileSync(path, JSON.stringify({ ...current, ...patch }, null, 2) + "\n");
-  } catch {
-    // A read-only settings file must not crash the extension.
+  } catch (error) {
+    // Only a missing file is safe to create; unreadable or invalid files must survive toggles.
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? {} : null;
   }
 }
 
@@ -81,8 +70,7 @@ function isTimerSeconds(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= MAX_TIMER_SECONDS;
 }
 
-export function readConfig(): FooterSettings {
-  const settings = readSettings();
+function configFrom(settings: Settings): FooterSettings {
   const config = { ...DEFAULT_SETTINGS, ...settings.minFooter };
   if (!isTimerSeconds(config.gitRefreshSeconds)) {
     config.gitRefreshSeconds = DEFAULT_SETTINGS.gitRefreshSeconds;
@@ -96,8 +84,20 @@ export function readConfig(): FooterSettings {
   return config;
 }
 
+export function readConfig(): FooterSettings {
+  return configFrom(readSettings() ?? {});
+}
+
 export function writeEnabled(v: boolean): void {
-  const cfg = readConfig();
+  const current = readSettings();
+  if (current === null) return;
+  const cfg = configFrom(current);
   cfg.enabled = v;
-  writeSettings({ minFooter: cfg });
+  try {
+    const path = settingsPath();
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ ...current, minFooter: cfg }, null, 2) + "\n");
+  } catch {
+    // A read-only settings file must not crash the extension.
+  }
 }

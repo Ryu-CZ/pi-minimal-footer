@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Footer toggles no longer overwrite unreadable or malformed shared settings files; the session toggle still works.
+
 ## [0.13.0] - 2026-11-04
 
 ### Added
