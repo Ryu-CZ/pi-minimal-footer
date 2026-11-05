@@ -38,6 +38,9 @@ pi install npm:pi-minimal-footer
 | `/minfooter` | Toggle footer |
 | `/minfooter on` | Enable |
 | `/minfooter off` | Disable |
+| `/minfooter status` | Show effective settings, layout/ownership, and cached quota diagnostics |
+
+`status` does not change settings, reclaim the footer, or make quota requests. It reports cached state only; missing credentials and unsupported authentication/endpoints share a diagnostic reason. Unknown arguments show usage without toggling.
 
 ## Settings
 

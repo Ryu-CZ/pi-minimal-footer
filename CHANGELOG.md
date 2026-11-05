@@ -7,12 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `/minfooter status` shows effective settings, active layout, and cached quota diagnostics without changing settings or making requests.
+
 ### Changed
 
 - Declare Pi support as >=1.0.3 <1.6.0, matching the compatibility CI version families.
 
 ### Fixed
 
+- Unknown `/minfooter` arguments now show usage instead of toggling the footer.
 - Developer-guide links now work from the installed npm README.
 - Invalid boolean settings now use their defaults instead of unexpectedly hiding fields or changing behavior.
 - Footer toggles no longer overwrite unreadable or malformed shared settings files; the session toggle still works.

@@ -115,6 +115,7 @@ export class UsageLimits {
   private windows: Record<string, UsageWindow> = {};
   private updatedAt: Record<string, number> = {};
   private stale = false;
+  private absence = "not selected";
   private attemptedAt = 0;
   private refreshDelay = REFRESH_MS;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -129,6 +130,7 @@ export class UsageLimits {
     this.windows = {};
     this.updatedAt = {};
     this.stale = false;
+    this.absence = "not selected";
     this.attemptedAt = 0;
     this.cancelRequest();
     if (this.timer) clearTimeout(this.timer);
@@ -139,6 +141,8 @@ export class UsageLimits {
     const model = ctx.model;
     if (!enabled || ctx.mode !== "tui" || !model || !supportedOrigin(model.provider, model.baseUrl)) {
       this.stop();
+      this.absence = !enabled ? "disabled or inactive" : ctx.mode !== "tui" ? "non-interactive mode"
+        : !model ? "no model selected" : "unsupported provider or custom endpoint";
       return;
     }
     const selection = model.provider + (model.provider === "google-gemini-cli" ? ":" + model.id : "");
@@ -227,6 +231,8 @@ export class UsageLimits {
       if (!request) {
         this.windows = {};
         this.updatedAt = {};
+        this.stale = false;
+        this.absence = "credentials unavailable or authentication/endpoint unsupported";
         return;
       }
       const response = await abortable(fetch(request.url, { ...request.init, signal: controller.signal, redirect: "error" }), controller.signal);
@@ -238,6 +244,7 @@ export class UsageLimits {
       if (this.request !== controller) return;
       if (controller.signal.aborted) throw new Error("Usage request timed out");
       this.windows = windows ?? {};
+      this.absence = "no quota reported";
       this.updatedAt = Object.fromEntries(Object.keys(this.windows).map((key) => [key, this.attemptedAt]));
       this.stale = false;
     } catch {
@@ -250,6 +257,19 @@ export class UsageLimits {
         this.render();
       }
     }
+  }
+
+  /** Cached diagnostics only: never resolve credentials or start a request. */
+  status(): string {
+    const window = this.selectedWindow()?.[1];
+    if (window) {
+      if (this.stale) return "stale (refresh failed)";
+      if (window.resetAt !== null && Date.now() >= window.resetAt) return "stale (reset time passed)";
+      return "available";
+    }
+    if (this.request) return "loading";
+    if (this.stale) return "unavailable (refresh failed)";
+    return this.absence;
   }
 
   hasUsage(): boolean {

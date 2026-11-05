@@ -349,8 +349,29 @@ export default function (pi: ExtensionAPI) {
   // ── Command ─────────────────────────────────────────────────────────
 
   pi.registerCommand("minfooter", {
-    description: "Toggle minimal footer",
+    description: "Toggle minimal footer or show status",
     handler: async (args, ctx) => {
+      args = args.trim();
+      if (args === "status") {
+        const owned = disposeFooter !== null;
+        const usageEnabled = usageEnabledOverride ?? (config.showUsage !== false);
+        const costEnabled = costEnabledOverride ?? (config.showCost !== false);
+        ctx.ui.notify([
+          `Footer: ${enabled ? "enabled" : "disabled"}`,
+          `Ownership: ${owned ? "owned" : "not owned"}`,
+          `Layout: ${owned ? compactEditor.isActive() ? "compact" : "normal" : "inactive"}`,
+          `Compact requested: ${(compactEnabledOverride ?? config.compactEditor) ? "yes" : "no"}`,
+          `Usage: ${!usageEnabled ? "disabled" : !owned ? "inactive (footer not owned)" : usageLimits.status()}`,
+          `Cost: ${costEnabled ? "enabled (fallback)" : "disabled"}`,
+          `Fields: ${(["showPath", "showGitBranch", "showSkills", "showModel", "showProvider", "showThinking", "showContext"] as const)
+            .map((key) => `${key}=${config[key]}`).join(", ")}`,
+        ].join("\n"), "info");
+        return;
+      }
+      if (args !== "" && args !== "on" && args !== "off") {
+        ctx.ui.notify("Usage: /minfooter [on|off|status]", "warning");
+        return;
+      }
       if (args === "on") enabled = true;
       else if (args === "off") enabled = false;
       else enabled = !enabled;

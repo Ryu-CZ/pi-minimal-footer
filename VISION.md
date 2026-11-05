@@ -100,6 +100,10 @@ Reuse Pi's selected-provider credentials. Copilot uses the saved OAuth GitHub lo
 - Invalid optional reset metadata must not discard otherwise valid usage. Zero usage is an empty bar, not an absent usage bar.
 - Stop requests and timers on disable, disposal, and session shutdown.
 
+### On-demand diagnostics
+
+`/minfooter status` reports effective footer, usage, cost, and compact preferences, displayed fields, footer ownership, actual layout, and the cached quota state. It never reloads settings, resolves credentials, starts requests, or reinstalls the footer. Quota reasons distinguish unsupported selections, loading, absent quota, failed refreshes, and passed reset times. A missing usage request is reported as credentials unavailable or authentication/endpoint unsupported; diagnostics do not guess which cause applies. Only fixed labels are shown, never tokens, headers, raw errors, or response bodies.
+
 ### Verification limits
 
 Parsing and lifecycle behavior have automated coverage. Authenticated provider endpoints have **not** been tested live. OpenCode Go's bearer-token response format and Copilot's public endpoint/enterprise compatibility remain unverified.
