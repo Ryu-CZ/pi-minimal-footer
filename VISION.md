@@ -80,6 +80,7 @@ Display only the selected provider's shortest applicable window. Subscription us
 | Provider | Selection / caveat |
 |---|---|
 | OpenAI Codex (`openai-codex`) | Shortest primary/secondary window; supports absolute reset timestamps and relative reset delays |
+| ChatGPT (`openai`, OAuth) | Shortest primary/secondary window via the Codex usage endpoint; requires a `chatgpt_account_id`-bearing access token, so ordinary `sk-` API keys and custom OpenAI-compatible endpoints are excluded |
 | Claude (`anthropic`, OAuth) | Five-hour window, or weekly fallback; ordinary API keys do not expose subscription usage |
 | GitHub Copilot (`github-copilot`) | Most-used limited quota bucket; unlimited buckets hidden |
 | Gemini CLI (`google-gemini-cli`) | Selected model, with Pro/Flash family fallback; needs a configured provider/model |

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { agentDir, createEventBus, theme, stripAnsi, hasUsageBar, settle, usagePayload, codexContext, fakeUsageFetch, installExtension, start, emit } from './helpers/footer-fixture.mjs';
+import { agentDir, createEventBus, theme, makeContext, stripAnsi, hasUsageBar, settle, usagePayload, codexContext, fakeUsageFetch, installExtension, start, emit } from './helpers/footer-fixture.mjs';
 
 for (const replacement of [undefined, () => ({ render: () => ['other footer'], dispose() {} })]) {
   test(`model selection cannot restart usage after ${replacement ? 'replacement' : 'removal'} of the footer`, async (t) => {
@@ -637,6 +637,31 @@ test('upstream rolling-usage providers render only their short window and use th
     assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻\d\d:\d\d $/);
     assert.equal(calls.at(-1).init.headers.Authorization, 'Bearer provider-token');
   }
+});
+
+test('ChatGPT sign-in usage fetches with the account header; API keys and custom origins are never polled', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+  const calls = fakeUsageFetch(t);
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  const payload = Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: 'account-42' } })).toString('base64url');
+  const jwt = `header.${payload}.signature`;
+  ctx.modelRegistry = { getApiKeyAndHeaders: async () => ({ ok: true, apiKey: jwt }) };
+  ctx.model = { id: 'gpt-6-sol', provider: 'openai', baseUrl: 'https://api.openai.com/v1' };
+  await start(runtime, ctx); await settle();
+  assert.equal(calls.at(-1)?.url, 'https://chatgpt.com/backend-api/wham/usage');
+  assert.equal(calls.at(-1).init.headers['ChatGPT-Account-Id'], 'account-42');
+  assert.equal(calls.at(-1).init.headers.Authorization, `Bearer ${jwt}`);
+  assert.equal(hasUsageBar(ui), true);
+  ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: 'sk-plain-key' });
+  t.mock.timers.tick(240000); await settle();
+  assert.equal(calls.length, 1, 'ordinary OpenAI API keys cannot query subscription usage');
+  assert.equal(hasUsageBar(ui), false);
+  ctx.model.baseUrl = 'https://proxy.example.com/v1';
+  await start(runtime, ctx); await settle();
+  assert.equal(calls.length, 1, 'custom proxy endpoints must not receive subscription tokens');
+  assert.equal(hasUsageBar(ui), false);
 });
 
 test('Gemini uses selected model usage, omits unknown reset time, and refreshes on model switch', async (t) => {

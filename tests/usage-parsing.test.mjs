@@ -45,11 +45,19 @@ test('Kimi rejects nonpositive limits and invalid or out-of-range counts', () =>
 
 test('Codex numeric strings and relative reset fallback use the controlled clock', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1791200000000 });
-  const result = parseUsage('openai-codex', '', { rate_limit: { primary_window: { used_percent: '35', limit_window_seconds: '18000', reset_after_seconds: '3600' } } });
-  assert.deepEqual(result, { used: 35, seconds: 18000, resetAt: 1791203600000 });
-  for (const reset_at of [undefined, 'invalid', -1]) {
-    assert.equal(parseUsage('openai-codex', '', { rate_limit: { primary_window: { used_percent: 0, reset_at, reset_after_seconds: 0 } } }).resetAt, 1791200000000);
+  for (const provider of ['openai-codex', 'openai']) {
+    const result = parseUsage(provider, '', { rate_limit: { primary_window: { used_percent: '35', limit_window_seconds: '18000', reset_after_seconds: '3600' } } });
+    assert.deepEqual(result, { used: 35, seconds: 18000, resetAt: 1791203600000 }, provider);
+    for (const reset_at of [undefined, 'invalid', -1]) {
+      assert.equal(parseUsage(provider, '', { rate_limit: { primary_window: { used_percent: 0, reset_at, reset_after_seconds: 0 } } }).resetAt, 1791200000000, provider);
+    }
   }
+});
+
+test('ChatGPT absolute reset wins over relative delay', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1791200000000 });
+  assert.equal(parseUsage('openai', '', { rate_limit: { primary_window: { used_percent: 35, reset_at: '1791207200', reset_after_seconds: 3600 } } }).resetAt, 1791207200000);
+  assert.equal(parseUsage('openai', '', { rate_limit: { primary_window: { used_percent: 35, reset_after_seconds: -1 } } }).resetAt, null);
 });
 
 test('Codex valid absolute reset wins over relative delay', (t) => {
@@ -60,6 +68,7 @@ test('Codex valid absolute reset wins over relative delay', (t) => {
 
 test('malformed optional resets preserve required valid usage', () => {
   const cases = [
+    ['openai', { rate_limit: { primary_window: { used_percent: 35, reset_at: 'invalid' } } }],
     ['openai-codex', { rate_limit: { primary_window: { used_percent: 35, reset_at: 'invalid' } } }],
     ['anthropic', { five_hour: { utilization: 35, resets_at: 'invalid' } }],
     ['minimax', { model_remains: [{ current_interval_remaining_percent: 65, end_time: 'invalid' }] }],
@@ -78,6 +87,7 @@ test('malformed optional resets preserve required valid usage', () => {
 
 test('all providers distinguish recognized absence from malformed snapshots', () => {
   const cases = [
+    ['openai', { rate_limit: null }, { rate_limit: { primary_window: { used_percent: null } } }],
     ['openai-codex', { rate_limit: null }, { rate_limit: { primary_window: { used_percent: null } } }],
     ['anthropic', { five_hour: null, seven_day: null }, { five_hour: { utilization: null }, seven_day: null }],
     ['minimax', { model_remains: [] }, { model_remains: [{ current_interval_remaining_percent: null }] }],
@@ -108,6 +118,7 @@ test('malformed explicit durations cannot win shortest-window selection', () => 
 
 test('full snapshots retain all valid siblings under stable provider-local keys', () => {
   const cases = [
+    ['openai', { rate_limit: { primary_window: { used_percent: 35 }, secondary_window: { used_percent: 90 } } }, ['primary', 'secondary']],
     ['openai-codex', { rate_limit: { primary_window: { used_percent: 35 }, secondary_window: { used_percent: 90 } } }, ['primary', 'secondary']],
     ['anthropic', { five_hour: { utilization: 35 }, seven_day: { utilization: 90 } }, ['five_hour', 'seven_day']],
     ['minimax', { model_remains: [{ current_interval_remaining_percent: 65, current_weekly_remaining_percent: 10 }] }, ['interval', 'weekly']],
@@ -151,6 +162,7 @@ test('Gemini malformed exact-model usage cannot substitute a different family mo
 
 test('malformed snapshot containers do not become usable named windows', () => {
   for (const [provider, payload] of [
+    ['openai', { rate_limit: 'invalid' }],
     ['openai-codex', { rate_limit: 'invalid' }],
     ['minimax', { model_remains: {} }],
     ['kimi-coding', { limits: {} }],

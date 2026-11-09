@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Subscription usage bar for ChatGPT sign-ins (pi's `openai` provider), sharing the Codex usage endpoint and parser. Ordinary `sk-` API keys and custom OpenAI-compatible endpoints remain excluded.
+
 ## [0.14.0] - 2026-11-05
 
 ### Added

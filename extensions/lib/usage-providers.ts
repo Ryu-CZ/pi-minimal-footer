@@ -46,6 +46,7 @@ export function shortest(windows: (UsageWindow | null)[]): UsageWindow | null {
 }
 
 const ENDPOINTS: Record<string, string> = {
+  openai: "https://chatgpt.com/backend-api/wham/usage",
   "openai-codex": "https://chatgpt.com/backend-api/wham/usage",
   anthropic: "https://api.anthropic.com/api/oauth/usage",
   "github-copilot": "https://api.github.com/copilot_internal/user",
@@ -62,6 +63,10 @@ export function supportedOrigin(provider: string, baseUrl: string | undefined): 
     const url = new URL(baseUrl);
     if (provider === "github-copilot") return url.protocol === "https:" && !url.port &&
       (url.hostname === "githubcopilot.com" || url.hostname.endsWith(".githubcopilot.com"));
+    if (provider === "openai") {
+      // ChatGPT subscription tokens are scoped to the official API origin; usage itself lives on chatgpt.com.
+      return url.protocol === "https:" && !url.port && (url.hostname === "api.openai.com" || url.hostname === "chatgpt.com");
+    }
     return url.origin === new URL(ENDPOINTS[provider]).origin;
   } catch { return false; }
 }
@@ -71,6 +76,15 @@ function storedOAuth(provider: string): Record<string, unknown> {
     const entry = record(record(JSON.parse(readFileSync(join(getAgentDir(), "auth.json"), "utf8")))[provider]);
     return entry.type === "oauth" ? entry : {};
   } catch { return {}; }
+}
+
+/** Both ChatGPT sign-ins and Codex carry the billing account in the access-token JWT. */
+function chatgptAccountId(token: string | undefined): string | null {
+  try {
+    const payload = record(JSON.parse(Buffer.from(token?.split(".")[1] ?? "", "base64url").toString("utf8")));
+    const id = record(payload["https://api.openai.com/auth"]).chatgpt_account_id;
+    return typeof id === "string" && id ? id : null;
+  } catch { return null; }
 }
 
 export async function usageRequest(ctx: ExtensionContext, model: NonNullable<ExtensionContext["model"]>): Promise<{ url: string; init: RequestInit } | null> {
@@ -87,13 +101,11 @@ export async function usageRequest(ctx: ExtensionContext, model: NonNullable<Ext
   const authorization = Object.entries(auth.headers ?? {}).find(([name]) => name.toLowerCase() === "authorization")?.[1];
   let token = typeof authorization === "string" ? /^Bearer\s+(.+)$/i.exec(authorization)?.[1] ?? auth.apiKey : auth.apiKey;
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (provider === "openai-codex") {
-    try {
-      const payload = record(JSON.parse(Buffer.from(token?.split(".")[1] ?? "", "base64url").toString("utf8")));
-      const id = record(payload["https://api.openai.com/auth"]).chatgpt_account_id;
-      if (typeof id !== "string" || !id) return null;
-      headers["ChatGPT-Account-Id"] = id;
-    } catch { return null; }
+  if (provider === "openai-codex" || provider === "openai") {
+    if (provider === "openai" && typeof token === "string" && token.startsWith("sk-")) return null;
+    const id = chatgptAccountId(token);
+    if (!id) return null;
+    headers["ChatGPT-Account-Id"] = id;
   } else if (provider === "anthropic") {
     if (!ctx.modelRegistry.isUsingOAuth?.(model) && !token?.startsWith("sk-ant-oat")) return null;
     headers["anthropic-beta"] = "oauth-2025-04-20";
@@ -282,7 +294,7 @@ export function parseUsageWindows(provider: string, model: string, payload: unkn
     },
   };
   const data = record(payload);
-  if (provider === "openai-codex") parseCodexUsage(data, snapshot);
+  if (provider === "openai-codex" || provider === "openai") parseCodexUsage(data, snapshot);
   else if (provider === "anthropic") parseAnthropicUsage(data, snapshot);
   else if (provider === "minimax" || provider === "minimax-cn") parseMiniMaxUsage(data, snapshot);
   else if (provider === "kimi-coding") parseKimiUsage(data, snapshot);

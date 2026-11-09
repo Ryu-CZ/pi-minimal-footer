@@ -132,6 +132,7 @@ Uses your existing Pi login; ordinary Claude API keys do not expose subscription
 *Authenticated endpoints remain unverified live; see [verification limits](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md).*
 
 Supported services:
+ - **ChatGPT (OpenAI sign-in)**
  - **OpenAI Codex**
  - **Claude OAuth**
  - **GitHub Copilot**
@@ -139,6 +140,8 @@ Supported services:
  - **MiniMax**
  - **Kimi Coding**
  - **OpenCode Go**
+
+Ordinary OpenAI API keys (`sk-…`) cannot query ChatGPT subscription usage.
 
 ### Extension statuses
 
