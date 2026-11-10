@@ -43,6 +43,13 @@ test('unpriced local models and subscriptions hide cost even after earlier paid 
     ['llamacpp', { input: NaN, output: Infinity, cacheRead: -1 }, false],
     ['kimi-coding', rates, false],
     ['opencode-go', rates, false],
+    ['qwen-token-plan', rates, false],
+    ['qwen-token-plan-cn', rates, false],
+    ['qwen-token-plan-individual', rates, false],
+    ['qwen-token-plan-individual-cn', rates, false],
+    ['xai', rates, true, true],
+    ['meta', rates, true, true],
+    ['openai', rates, true, true],
     ['anthropic', rates, true, true],
     ['openai-codex', rates, true, undefined],
   ]) {
@@ -53,6 +60,23 @@ test('unpriced local models and subscriptions hide cost even after earlier paid 
     ctx.modelRegistry = { isUsingOAuth: () => oauth, getProvider: () => ({ auth: { oauth: { isSubscription: subscription } } }) };
     await start(runtime, ctx);
     try { assert.doesNotMatch(stripAnsi(ui.component.render(120)[0]), /\$/); }
+    finally { await emit(runtime, 'session_shutdown', ctx); }
+  }
+});
+
+test('PAYG providers keep estimates, including non-subscription OAuth', async () => {
+  for (const [provider, oauth, subscription] of [
+    ['openai', false], ['anthropic', false], ['xai', false], ['meta', false],
+    ['moonshotai', false], ['moonshotai-cn', false], ['opencode', false],
+    ['minimax', false], ['minimax-cn', false], ['openrouter', true, false],
+  ]) {
+    const runtime = await installExtension();
+    const { ctx, ui } = makeContext();
+    ctx.model = { ...ctx.model, provider, cost: rates };
+    ctx.sessionManager = { getEntries: () => entries };
+    ctx.modelRegistry = { isUsingOAuth: () => oauth, getProvider: () => ({ auth: { oauth: { isSubscription: subscription } } }) };
+    await start(runtime, ctx);
+    try { assert.match(stripAnsi(ui.component.render(120)[0]), /~\$0\.132/); }
     finally { await emit(runtime, 'session_shutdown', ctx); }
   }
 });

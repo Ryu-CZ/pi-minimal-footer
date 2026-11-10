@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Preserve shared settings when a footer settings write or migration fails.
+- Hide misleading pay-per-token estimates for Qwen Token Plan subscriptions, including regional and individual variants.
 
 ### Deprecated
 
