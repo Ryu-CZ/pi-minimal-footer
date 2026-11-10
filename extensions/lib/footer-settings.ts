@@ -1,5 +1,8 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  accessSync, chmodSync, constants, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync,
+} from "node:fs";
+import { randomUUID } from "node:crypto";
 import { join, dirname } from "node:path";
 import { MAX_BAR_CELLS } from "./usage-limits.js";
 
@@ -8,6 +11,8 @@ interface Settings {
     enabled?: boolean;
     compactEditor?: boolean;
     showGitBranch?: boolean;
+    showStatuses?: boolean;
+    /** @deprecated Use showStatuses. */
     showSkills?: boolean;
     showPath?: boolean;
     showModel?: boolean;
@@ -25,7 +30,7 @@ interface Settings {
   };
 }
 
-export type FooterSettings = NonNullable<Settings["minFooter"]>;
+export type FooterSettings = Omit<NonNullable<Settings["minFooter"]>, "showSkills">;
 
 // Node clamps timer delays above this signed 32-bit millisecond limit to 1ms.
 const MAX_TIMER_SECONDS = Math.floor(2_147_483_647 / 1000);
@@ -34,7 +39,7 @@ const DEFAULT_SETTINGS = {
   enabled: true,
   compactEditor: false,
   showGitBranch: true,
-  showSkills: true,
+  showStatuses: true,
   showPath: true,
   showModel: true,
   showContext: true,
@@ -66,6 +71,40 @@ function readSettings(): Settings | null {
   }
 }
 
+function writeSettings(settings: Settings): void {
+  let path = settingsPath();
+  let mode = 0o600;
+  try {
+    // Update the target of symlinked settings, and retain its permissions.
+    path = realpathSync(path);
+    mode = statSync(path).mode & 0o777;
+    accessSync(path, constants.W_OK);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  mkdirSync(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temporaryPath, JSON.stringify(settings, null, 2) + "\n", { flag: "wx", mode });
+    chmodSync(temporaryPath, mode);
+    renameSync(temporaryPath, path);
+  } finally {
+    rmSync(temporaryPath, { force: true });
+  }
+}
+
+function migrateSettings(settings: Settings): Settings {
+  const preferences = settings.minFooter;
+  if (!preferences || typeof preferences !== "object" || Array.isArray(preferences)
+      || !Object.hasOwn(preferences, "showSkills")) return settings;
+  const migrated = { ...preferences };
+  if (!Object.hasOwn(migrated, "showStatuses") && typeof migrated.showSkills === "boolean") {
+    migrated.showStatuses = migrated.showSkills;
+  }
+  delete migrated.showSkills;
+  return { ...settings, minFooter: migrated };
+}
+
 function isTimerSeconds(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= MAX_TIMER_SECONDS;
 }
@@ -95,18 +134,26 @@ function configFrom(settings: Settings): FooterSettings {
 }
 
 export function readConfig(): FooterSettings {
-  return configFrom(readSettings() ?? {});
+  const settings = readSettings() ?? {};
+  const migrated = migrateSettings(settings);
+  if (migrated !== settings) {
+    try {
+      writeSettings(migrated);
+    } catch {
+      // The migrated preferences remain effective even when persistence fails.
+    }
+  }
+  return configFrom(migrated);
 }
 
 export function writeEnabled(v: boolean): void {
   const current = readSettings();
   if (current === null) return;
-  const cfg = configFrom(current);
+  const migrated = migrateSettings(current);
+  const cfg = configFrom(migrated);
   cfg.enabled = v;
   try {
-    const path = settingsPath();
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify({ ...current, minFooter: cfg }, null, 2) + "\n");
+    writeSettings({ ...migrated, minFooter: cfg });
   } catch {
     // A read-only settings file must not crash the extension.
   }

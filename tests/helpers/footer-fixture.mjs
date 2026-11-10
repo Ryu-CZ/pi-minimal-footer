@@ -122,7 +122,7 @@ async function emit(runtime, name, ctx, event = {}) {
 
 // A fresh extension instance per test prevents global module state from leaking between cases.
 test.beforeEach(async () => {
-  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, showGitBranch: true, showSkills: true, showPath: true, showModel: true, showContext: true } }));
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, showGitBranch: true, showStatuses: true, showPath: true, showModel: true, showContext: true } }));
 });
 test.after(async () => { await rm(agentDir, { recursive: true, force: true }); await rm(homeDir, { recursive: true, force: true }); });
 

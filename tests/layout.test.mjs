@@ -60,7 +60,7 @@ test('usage bar respects configured cell caps and invalid values fall back to te
   fakeUsageFetch(t);
   for (const [maxUsageBarCells, expected] of [[4, 4], [1, 1], [16, 16], [undefined, 10], [0, 10], [-1, 10], [2.5, 10], ['4', 10], [null, 10]]) {
     await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: {
-      maxUsageBarCells, showPath: false, showGitBranch: false, showSkills: false, showModel: false, showContext: false,
+      maxUsageBarCells, showPath: false, showGitBranch: false, showStatuses: false, showModel: false, showContext: false,
     } }));
     const runtime = await installExtension();
     const { ctx, ui } = codexContext();
@@ -97,7 +97,7 @@ test('two-cell compact bar preserves model and context before expansion', async 
 
 test('usage bar grows from two to ten cells using spare columns', async (t) => {
   fakeUsageFetch(t);
-  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showPath: false, showGitBranch: false, showSkills: false, showModel: false, showContext: false } }));
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { showPath: false, showGitBranch: false, showStatuses: false, showModel: false, showContext: false } }));
   const runtime = await installExtension();
   const { ctx, ui } = codexContext();
   await start(runtime, ctx);
@@ -206,7 +206,7 @@ test('rendering fits pathological widths, ANSI/Unicode status, and preserves mod
 });
 
 test('each disabled feature option omits only its segment', async () => {
-  for (const [key, forbidden] of [['showPath', '/project'], ['showSkills', '技能'], ['showGitBranch', 'main'], ['showModel', 'test-model'], ['showContext', '12k/128k']]) {
+  for (const [key, forbidden] of [['showPath', '/project'], ['showStatuses', '技能'], ['showGitBranch', 'main'], ['showModel', 'test-model'], ['showContext', '12k/128k']]) {
     await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, [key]: false } }));
     const runtime = await installExtension();
     const { ctx, ui } = makeContext({ cwd: join(homeDir, 'project'), footerProvider: provider() });

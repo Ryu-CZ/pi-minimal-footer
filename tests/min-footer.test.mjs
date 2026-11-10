@@ -246,7 +246,7 @@ test('normalizes timer-bound settings when enabling the footer', async () => {
 
 test('boolean settings use defaults for invalid values and preserve valid booleans', async () => {
   const defaults = {
-    compactEditor: false, showGitBranch: true, showSkills: true, showPath: true,
+    compactEditor: false, showGitBranch: true, showStatuses: true, showPath: true,
     showModel: true, showContext: true, showProvider: false, showThinking: false,
     showUsage: true, showCost: true, contextAsPercentage: false,
     powerlineSeparator: true, gitFetch: false,
@@ -465,7 +465,7 @@ test('provider and thinking details are opt-in and independently enabled', async
     [{ showModel: false, showProvider: true, showThinking: true }, ''],
   ]) {
     await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: {
-      showPath: false, showGitBranch: false, showSkills: false, showContext: false, ...options,
+      showPath: false, showGitBranch: false, showStatuses: false, showContext: false, ...options,
     } }));
     const runtime = await installExtension();
     runtime.setThinkingLevel('high');

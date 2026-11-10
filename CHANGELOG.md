@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rename `showSkills` to `showStatuses`, automatically migrating saved settings on load.
+
+### Fixed
+
+- Preserve shared settings when a footer settings write or migration fails.
+
+### Deprecated
+
+- `showSkills` remains a fallback when migration cannot be saved; use `showStatuses` instead.
+
 ## [0.15.0] - 2026-11-10
 
 ### Added

@@ -184,7 +184,7 @@ export default function (pi: ExtensionAPI) {
         git.start(config, request);
 
         const renderLine = (width: number, borderColor?: LineParts["borderColor"]): string => {
-          const statuses = config.showSkills
+          const statuses = config.showStatuses
             ? [...footerData.getExtensionStatuses().values()].map((s) => s.replace(/[\r\n\t]/g, " ")).filter((s) => s.trim())
             : [];
           const branch = config.showGitBranch ? footerData.getGitBranch() : null;
@@ -363,7 +363,7 @@ export default function (pi: ExtensionAPI) {
           `Compact requested: ${(compactEnabledOverride ?? config.compactEditor) ? "yes" : "no"}`,
           `Usage: ${!usageEnabled ? "disabled" : !owned ? "inactive (footer not owned)" : usageLimits.status()}`,
           `Cost: ${costEnabled ? "enabled (fallback)" : "disabled"}`,
-          `Display: ${(["showPath", "showSkills", "showModel", "showProvider", "showThinking", "showContext",
+          `Display: ${(["showPath", "showStatuses", "showModel", "showProvider", "showThinking", "showContext",
             "contextAsPercentage", "powerlineSeparator", "maxUsageBarCells"] as const)
             .map((key) => `${key}=${config[key]}`).join(", ")}`,
           `Git: ${(["showGitBranch", "gitFetch", "gitRefreshSeconds", "gitFetchTimeoutSeconds"] as const)

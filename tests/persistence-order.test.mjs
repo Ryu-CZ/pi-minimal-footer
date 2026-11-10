@@ -25,7 +25,7 @@ test.after(async () => { await rm(isolated, { recursive: true, force: true }); }
 
 test('real AgentSession persists after message_end and footer refreshes from persisted turn_end usage', async () => {
   await mkdir(agentDir, { recursive: true });
-  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, showPath: false, showGitBranch: false, showSkills: false } }));
+  await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { enabled: true, showPath: false, showGitBranch: false, showStatuses: false } }));
   const loaded = await loadExtensions([join(root, 'extensions')], root);
   assert.deepEqual(loaded.errors, []);
   const extension = loaded.extensions[0];

@@ -175,7 +175,7 @@ ctx.ui.setStatus("my-extension", "Ready"); // update the same entry
 ctx.ui.setStatus("my-extension", undefined); // remove it
 ```
 
-Use a unique key. Pi requests a redraw when statuses change; no footer-specific event is needed. `showSkills` controls status visibility. Narrow terminals may truncate or omit entries to preserve model/context and usage information.
+Use a unique key. Pi requests a redraw when statuses change; no footer-specific event is needed. `showStatuses` controls status visibility. Narrow terminals may truncate or omit entries to preserve model/context and usage information.
 
 Footer ownership is exclusive: another extension calling `ctx.ui.setFooter()` replaces this footer. Usage requests, new Git queries, and footer-owned timers stop on disposal; an in-flight Git query may complete, but lifecycle state refreshes alone never start one.
 
@@ -274,7 +274,7 @@ pi.events.emit("pi-minimal-footer:set-cost-enabled", { enabled: null });  // res
 - `tests/usage-parsing.test.mjs`: provider parsing.
 - `tests/persistence-order.test.mjs`: real `AgentSession` message persistence and post-persistence footer usage.
 
-Settings live under `minFooter` in Pi's configured agent directory. Reload them on session start, footer commands and effective footer-control changes; usage/cost-control changes and ordinary refreshes use cached settings. Preserve unrelated settings on writes. Only install the footer in interactive terminal mode.
+Settings live under `minFooter` in Pi's configured agent directory. Reload them on session start, footer commands and effective footer-control changes; usage/cost-control changes and ordinary refreshes use cached settings. Migrate deprecated `showSkills` to `showStatuses` on load; the new key takes precedence. Persist via a temporary file and atomic replacement, preserving unrelated settings, file permissions and symlink targets. A failed migration still uses the migrated preferences in memory. Only install the footer in interactive terminal mode.
 
 ### Checking changes
 

@@ -52,7 +52,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
     "enabled": true,
     "compactEditor": false,
     "showGitBranch": true,
-    "showSkills": true,
+    "showStatuses": true,
     "showPath": true,
     "showModel": true,
     "showContext": true,
@@ -73,7 +73,7 @@ Edit `minFooter` in Pi's agent `settings.json` (normally `~/.pi/agent/settings.j
 - `compactEditor` embeds the footer in the editor's bottom separator, saving one row; experimental, default `false`. See [compact editor](#compact-editor) for limitations.
 - `showProvider` prefixes the model with its provider id, e.g. `opencode-go/deepseek-v4.1-flash`; default `false`.
 - `showThinking` appends the thinking level for reasoning models, e.g. `deepseek-v4.1-flash high` or `thinking off`, in the theme's thinking-level color; default `false`.
-- `showSkills` shows **extension status text**, not installed skills. The footer does not add the example statuses itself.
+- `showStatuses` shows **extension status text**, not installed skills. The footer does not add the example statuses itself. Deprecated `showSkills` is automatically migrated on first load after updating; `showStatuses` wins if both exist. If settings cannot be written, the legacy key still works.
 - `showUsage` shows subscription usage; set it to `false` to hide the bar and stop quota queries. Default `true`.
 - `showCost` shows estimated session cost when no subscription bar is shown. Set it to `false` to hide cost. Default `true`.
 - Set `powerlineSeparator` to `false` for plain spaces instead of `` / `` if your font lacks those glyphs. The git icon `` and sync arrows also need compatible glyphs; hide Git data with `showGitBranch: false` if needed.
@@ -145,7 +145,7 @@ Ordinary OpenAI API keys (`sk-…`) cannot query ChatGPT subscription usage.
 
 ### Extension statuses
 
-Provided by other extensions; hidden with `showSkills: false`. Narrow terminals may shorten or omit them.
+Provided by other extensions; hidden with `showStatuses: false`. Narrow terminals may shorten or omit them.
 
 Only one footer extension can be active. For plugin integration, see [VISION.md](https://github.com/Ryu-CZ/pi-minimal-footer/blob/main/VISION.md#plugin-integration).
 
