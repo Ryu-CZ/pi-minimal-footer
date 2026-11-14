@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Rename `showSkills` to `showStatuses`, automatically migrating saved settings on load.
+- Update Pi development dependencies to 1.5.2; type checks and all 177 tests pass against this version.
 
 ### Fixed
 
