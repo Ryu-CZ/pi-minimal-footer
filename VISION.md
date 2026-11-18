@@ -75,7 +75,7 @@ Cost reuses Pi's persisted session usage totals, including compaction, summaries
 
 ## Subscription usage contract
 
-Display only the selected provider's shortest applicable window. Subscription usage and model context usage are separate measurements.
+Display only the selected provider's shortest applicable window unless any applicable quota is exhausted (100% used). Exhausted windows take priority; select the latest known reset among them, falling back to the shortest exhausted window when no reset is known. Unknown resets do not establish a recovery time. Subscription usage and model context usage are separate measurements.
 
 | Provider | Selection / caveat |
 |---|---|
@@ -94,7 +94,7 @@ Reuse Pi's selected-provider credentials. Copilot uses the saved OAuth GitHub lo
 
 - Consume passive Codex response headers/stream events and Claude quota headers when available.
 - Otherwise fetch on startup/provider switch, then roughly every four minutes without a fresh response update. Sample independent uniform ±⅛ jitter (3.5–4.5 minutes) for each attempt or fresh displayed-window update to spread fallback requests across sessions. Keep that deadline across unrelated window updates; a reported reset time still triggers an earlier refresh.
-- Merge partial windows. A weekly-only signal must not replace a cached shorter window or postpone its refresh.
+- Merge partial windows. A weekly-only signal must not replace a cached shorter window or postpone its refresh unless exhaustion changes the displayed window.
 - Bound authentication, fetch, and response-body parsing by a shared nine-second timeout. Release stalled work so polling can recover.
 - Provider switches clear usage immediately, cancel pending work, and invalidate late results. Gemini model switches also refresh model-specific usage.
 - Missing credentials and explicit empty/unlimited responses clear usage. Temporary authentication, network, or parsing failures retain only the current provider's cached usage, dimmed; without cache, hide it.

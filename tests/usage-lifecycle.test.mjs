@@ -399,7 +399,7 @@ test('malformed HTTP 200 dims valid cached usage and a later valid snapshot reco
 });
 
 for (const providerName of ['openai-codex', 'anthropic']) {
-  test(`${providerName} weekly-only passive headers retain the short window and its fallback deadline`, async (t) => {
+  test(`${providerName} non-exhausted weekly-only passive headers retain the short window and its fallback deadline`, async (t) => {
     t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date(2026, 9, 5, 12, 0).getTime() });
     const reset = Date.now() / 1000 + 7200;
     const calls = fakeUsageFetch(t, () => Response.json(providerName === 'openai-codex' ? usagePayload(35, reset) : {
@@ -433,6 +433,63 @@ for (const providerName of ['openai-codex', 'anthropic']) {
   });
 }
 
+for (const [name, primaryUsed, secondaryUsed, primaryReset, secondaryReset, expectedReset] of [
+  ['exhausted 5h beats a nearly exhausted weekly quota resetting sooner', 100, 98, '10:30', '06:37', '10:30'],
+  ['exhausted weekly beats a non-exhausted 5h quota', 35, 100, '10:30', '06:37', '06:37'],
+  ['both exhausted with 5h resetting last', 100, 100, '10:30', '06:37', '10:30'],
+  ['both exhausted with weekly resetting last', 100, 100, '06:37', '10:30', '10:30'],
+  ['both exhausted with only weekly reset known', 100, 100, null, '10:30', '10:30'],
+  ['both exhausted with only 5h reset known', 100, 100, '10:30', null, '10:30'],
+  ['both exhausted without reset metadata', 100, 100, null, null, null],
+]) {
+  test(`quota selection: ${name}`, async (t) => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date(2026, 10, 18, 6, 24).getTime() });
+    const resetAt = (time) => time === null ? null
+      : new Date(2026, 10, 18, ...time.split(':').map(Number)).getTime() / 1000;
+    const data = usagePayload(primaryUsed, resetAt(primaryReset));
+    Object.assign(data.rate_limit.secondary_window, { used_percent: secondaryUsed, reset_at: resetAt(secondaryReset) });
+    fakeUsageFetch(t, () => Response.json(data));
+    const runtime = await installExtension();
+    const { ctx, ui } = codexContext();
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx); await settle();
+    const line = stripAnsi(ui.component.render(120)[0]);
+    assert.match(line, /\[⣿{10}\]/);
+    assert.ok(line.endsWith((expectedReset ? `↻${expectedReset}` : ']') + ' '), line);
+  });
+}
+
+test('weekly exhaustion supersedes an in-flight refresh and recovery restores the short window', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date(2026, 10, 18, 6, 24).getTime() });
+  let resolveRefresh;
+  let responses = 0;
+  const reset = new Date(2026, 10, 18, 10, 30).getTime() / 1000;
+  const weeklyReset = new Date(2026, 10, 18, 6, 37).getTime() / 1000;
+  const calls = fakeUsageFetch(t, () => ++responses === 1 ? Response.json(usagePayload(35, reset))
+    : new Promise((resolve) => { resolveRefresh = resolve; }));
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx); await settle();
+  t.mock.timers.tick(240000); await settle();
+  assert.equal(calls.length, 2);
+  await emit(runtime, 'after_provider_response', ctx, { headers: {
+    'x-codex-secondary-used-percent': '100',
+    'x-codex-secondary-reset-at': String(weeklyReset),
+  } });
+  assert.equal(calls[1].init.signal.aborted, true);
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{10}\]↻06:37 $/);
+  resolveRefresh(Response.json(usagePayload(5, reset))); await settle();
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{10}\]↻06:37 $/, 'late snapshot cannot undo exhaustion');
+
+  await emit(runtime, 'after_provider_response', ctx, { headers: { 'x-codex-secondary-used-percent': '0' } });
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻10:30 $/);
+  t.mock.timers.tick(239999); await settle();
+  assert.equal(calls.length, 2);
+  t.mock.timers.tick(1); await settle();
+  assert.equal(calls.length, 3, 'recovery resumes polling for the selected short window');
+});
+
 test('Codex partial streams merge stable window keys and preserve omitted short-window metadata', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date(2026, 9, 5, 12, 0).getTime() });
   const calls = fakeUsageFetch(t);
@@ -453,7 +510,7 @@ test('Codex partial streams merge stable window keys and preserve omitted short-
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{7}⠀{3}\]↻14:04 $/);
 });
 
-test('weekly-only passive signals do not cancel an in-flight short-window fallback or undim failed cache', async (t) => {
+test('non-exhausted weekly-only passive signals do not cancel an in-flight short-window fallback or undim failed cache', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   let resolveRefresh;
   let responses = 0;
@@ -595,7 +652,7 @@ test('switching away and back cannot restore an old provider result; only curren
   assert.equal(hasUsageBar(ui), false, 'dimmed data also disappears on switch');
 });
 
-test('upstream rolling-usage providers render only their short window and use their own usage endpoints', async (t) => {
+test('upstream rolling-usage providers prefer their short window when no quota is exhausted and use their own endpoints', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const reset = new Date(Date.now() + 7200000).toISOString();
   const cases = [

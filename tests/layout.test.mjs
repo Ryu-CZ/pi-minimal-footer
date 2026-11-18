@@ -231,7 +231,7 @@ test('home abbreviation is boundary-safe and exact home is shortened', async () 
   assert.match(c2.render(160)[0], new RegExp(home.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
-test('Codex renders only shortest window as Braille and local reset time, fitting all widths', async (t) => {
+test('Codex renders the shortest window when no quota is exhausted, fitting all widths', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date(2026, 9, 5, 12, 0).getTime() });
   const reset = new Date(2026, 9, 5, 16, 40).getTime() / 1000;
   const data = usagePayload(35, reset);

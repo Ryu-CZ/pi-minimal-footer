@@ -174,7 +174,13 @@ export class UsageLimits {
   }
 
   private selectedWindow(): [string, UsageWindow] | null {
-    const window = shortest(Object.values(this.windows));
+    const windows = Object.values(this.windows);
+    const exhausted = windows.filter((window) => window.used === 100);
+    let window = shortest(exhausted.length ? exhausted : windows);
+    // Every exhausted quota must reset before use can resume.
+    for (const blocked of exhausted) {
+      if (blocked.resetAt !== null && blocked.resetAt > (window?.resetAt ?? -Infinity)) window = blocked;
+    }
     return window ? Object.entries(this.windows).find(([, value]) => value === window)! : null;
   }
 

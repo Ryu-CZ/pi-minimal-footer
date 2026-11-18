@@ -122,7 +122,7 @@ The context label turns yellow at 85% and red at 92% of Pi's configured compacti
 - **Colors:** green below 85%, amber from 85%, red from 92%.
 - **Cached data:** dim after a refresh failure or when its reset time has passed.
 - Reset: local `↻HH:mm` through 24 hours; whole days/hours above 24 hours (`↻1d8h`); whole days above 10 days (`↻12d`). Remaining durations round down. No reset reported means bar only.
-- Shows the shortest available usage window for the selected provider. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
+- Shows the shortest available usage window, unless a quota is exhausted. Exhausted quotas take priority; when several are exhausted, shows the latest known reset. Missing credentials, unsupported/local models, or absent limits hide the usage bar. Custom proxy endpoints are not polled.
 - Virtual/routed models show model and context usage, but no subscription bar.
 
 #### Supported subscriptions
