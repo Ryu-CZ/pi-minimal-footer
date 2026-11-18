@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-11-18
+
 ### Added
 
 - Live README coverage badge measuring only extension source code.
@@ -398,7 +400,8 @@ First npm-ready release.
 
 [@mkaros2025]: https://github.com/mkaros2025
 
-[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Ryu-CZ/pi-minimal-footer/compare/v0.13.0...v0.14.0
