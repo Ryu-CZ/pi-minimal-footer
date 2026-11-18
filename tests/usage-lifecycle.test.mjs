@@ -134,6 +134,51 @@ test('Codex stream usage updates render without polling and ignore other provide
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⠀{10}\]↻\d\d:\d\d $/);
 });
 
+test('unrelated Codex stream events preserve cached usage, refresh deadlines, and pending requests', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+  let resolveRefresh;
+  let responses = 0;
+  const calls = fakeUsageFetch(t, () => ++responses === 1 ? Response.json(usagePayload())
+    : new Promise((resolve) => { resolveRefresh = resolve; }));
+  const runtime = await installExtension();
+  const { ctx, ui } = codexContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx); await settle();
+  const cached = stripAnsi(ui.component.render(120)[0]);
+  const limits = { primary: { used_percent: 100, window_minutes: 300 } };
+  const ignored = [
+    { type: 'response.completed', rate_limits: limits },
+    { type: 'codex.rate_limits', metered_limit_name: 'other-model', rate_limits: limits },
+    { type: 'codex.rate_limits', limit_name: 'other-model', rate_limits: limits },
+  ];
+  const stream = (data) => emit(runtime, 'provider_stream_event', ctx, {
+    provider: 'openai-codex', model: ctx.model.id, data,
+  });
+  t.mock.timers.tick(180000);
+  for (const data of ignored) {
+    await stream(data);
+    assert.equal(stripAnsi(ui.component.render(120)[0]), cached);
+    assert.equal(calls.length, 1);
+  }
+  t.mock.timers.tick(60000); await settle();
+  assert.equal(calls.length, 2, 'ignored events do not postpone the existing refresh deadline');
+  for (const data of ignored) {
+    await stream(data);
+    assert.equal(calls[1].init.signal.aborted, false);
+    assert.equal(stripAnsi(ui.component.render(120)[0]), cached);
+  }
+  for (const [poolField, used] of [['metered_limit_name', 70], ['limit_name', 80]]) {
+    await stream({ type: 'codex.rate_limits', [poolField]: 'codex', rate_limits: {
+      primary: { used_percent: used, window_minutes: 300 },
+    } });
+    const expectedBar = `[${'⣿'.repeat(used / 10)}${'⠀'.repeat(10 - used / 10)}]↻`;
+    assert.ok(stripAnsi(ui.component.render(120)[0]).includes(expectedBar), poolField);
+  }
+  assert.equal(calls[1].init.signal.aborted, true, 'the matching Codex pool supersedes the pending refresh');
+  resolveRefresh(Response.json(usagePayload(5))); await settle();
+  assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{8}⠀{2}\]↻/, 'late refresh cannot replace matching stream usage');
+});
+
 test('provider switch cancels pending usage and discards late results, disable stops polling', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   let resolveFetch;
