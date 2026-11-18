@@ -721,6 +721,36 @@ test('ChatGPT sign-in usage fetches with the account header; API keys and custom
   assert.equal(hasUsageBar(ui), false);
 });
 
+for (const endpointSource of ['model', 'resolved authentication']) {
+  test(`malformed ${endpointSource} endpoint never receives subscription credentials`, async (t) => {
+    const calls = fakeUsageFetch(t);
+    const runtime = await installExtension();
+    const { ctx, ui } = codexContext();
+    const officialUrl = ctx.model.baseUrl;
+    const authenticate = ctx.modelRegistry.getApiKeyAndHeaders;
+    let malformed = true;
+    let authCalls = 0;
+    ctx.modelRegistry.getApiKeyAndHeaders = async (...args) => {
+      authCalls++;
+      const auth = await authenticate(...args);
+      return endpointSource === 'resolved authentication' && malformed ? { ...auth, baseUrl: 'https://[' } : auth;
+    };
+    if (endpointSource === 'model') ctx.model.baseUrl = 'https://[';
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx); await settle();
+    assert.equal(authCalls, endpointSource === 'model' ? 0 : 1);
+    assert.equal(calls.length, 0);
+    assert.equal(hasUsageBar(ui), false);
+
+    malformed = false;
+    ctx.model.baseUrl = officialUrl;
+    await runtime.commands.get('minfooter').handler('on', ctx); await settle();
+    assert.equal(calls.length, 1, 'correcting the endpoint restores normal usage polling');
+    assert.equal(calls[0].url, 'https://chatgpt.com/backend-api/wham/usage');
+    assert.equal(hasUsageBar(ui), true);
+  });
+}
+
 test('Gemini uses selected model usage, omits unknown reset time, and refreshes on model switch', async (t) => {
   const calls = fakeUsageFetch(t, () => Response.json({ buckets: [
     { modelId: 'gemini-pro', remainingFraction: 0.65 },
