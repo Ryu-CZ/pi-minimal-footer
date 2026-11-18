@@ -35,6 +35,7 @@
   },
   "scripts": {
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "coverage": "JITI_SOURCE_MAPS=1 JITI_FS_CACHE=0 node --enable-source-maps --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include-all --test-coverage-include='**/extensions/**/*.ts' --test-reporter=spec --test-reporter=./scripts/coverage-reporter.mjs --test-reporter-destination=stdout --test-reporter-destination=coverage.svg tests/*.test.mjs",
     "check": "tsc --noEmit"
   },
   "peerDependencies": {

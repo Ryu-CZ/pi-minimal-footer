@@ -2,6 +2,7 @@
 
 <p>
   <a href="https://www.npmjs.com/package/pi-minimal-footer"><img src="https://img.shields.io/npm/v/pi-minimal-footer" alt="npm version"></a>
+  <a href="https://github.com/Ryu-CZ/pi-minimal-footer/actions/workflows/coverage.yml"><img src="https://raw.githubusercontent.com/Ryu-CZ/pi-minimal-footer/coverage/badge.svg" alt="Extension source line coverage"></a>
   <a href="https://www.npmjs.com/package/pi-minimal-footer"><img src="https://img.shields.io/npm/dt/pi-minimal-footer" alt="npm downloads"></a>
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/pi-minimal-footer" alt="license"></a>
   <a href="https://pi.dev/packages/pi-minimal-footer"><img src="https://img.shields.io/badge/pi-package-1a1a2e" alt="pi package"></a>

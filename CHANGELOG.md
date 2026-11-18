@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Live README coverage badge measuring only extension source code.
+
 ### Fixed
 
 - Prioritize exhausted subscription quotas, showing the latest known reset when multiple quotas block usage.
