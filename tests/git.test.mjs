@@ -64,6 +64,33 @@ for (const [random, interval] of [[0, 262500], [0.5, 300000], [1, 337500]]) {
   });
 }
 
+test('malformed Git divergence counts clear stale arrows and valid output recovers', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let stdout = '3 2';
+  const realPromisify = util.promisify;
+  const mockPromisify = t.mock.method(util, 'promisify', (fn) => {
+    const original = realPromisify(fn);
+    if (fn.name !== 'execFile') return original;
+    return async (...args) => args[0] === 'git' ? { stdout, stderr: '' } : original(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { mockPromisify.mock.restore(); syncBuiltinESMExports(); });
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext();
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx); await settle();
+  assert.match(ui.component.render(120)[0], /↑3 ↓2/);
+
+  for (const invalid of ['NaN 0', '0 NaN', '1.5 0', '0 1.5', '1']) {
+    stdout = invalid;
+    t.mock.timers.tick(91000); await settle();
+    assert.doesNotMatch(ui.component.render(120)[0], /↑|↓/, `invalid counts: ${invalid}`);
+    stdout = '1 4';
+    t.mock.timers.tick(91000); await settle();
+    assert.match(ui.component.render(120)[0], /↑1 ↓4/, 'valid counts restore divergence arrows');
+  }
+});
+
 test('Git queries follow live footer ownership and resume on explicit enable', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let queries = 0;
