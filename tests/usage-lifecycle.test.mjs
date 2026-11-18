@@ -742,6 +742,40 @@ test('Gemini uses selected model usage, omits unknown reset time, and refreshes 
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{9}⠀\] $/);
 });
 
+for (const [name, credentials, expectedToken, expectedStatus] of [
+  ['token field', JSON.stringify({ token: 'gemini-token' }), 'gemini-token', 'available'],
+  ['accessToken field', JSON.stringify({ accessToken: 'gemini-access' }), 'gemini-access', 'available'],
+  ['token takes precedence', JSON.stringify({ token: 'preferred-token', accessToken: 'other-token' }), 'preferred-token', 'available'],
+  ['missing token fields', JSON.stringify({ projectId: 'project' }), null, 'credentials unavailable'],
+  ['non-string token fields', JSON.stringify({ token: 123, accessToken: false }), null, 'credentials unavailable'],
+  ['malformed JSON', '{SECRET_INVALID_JSON', null, 'unavailable (refresh failed)'],
+]) {
+  test(`Gemini JSON credentials: ${name}`, async (t) => {
+    const calls = fakeUsageFetch(t, () => Response.json({ buckets: [{ modelId: 'gemini-pro', remainingFraction: 0.65 }] }));
+    const runtime = await installExtension();
+    const { ctx, ui } = codexContext();
+    ctx.model = { id: 'gemini-pro', provider: 'google-gemini-cli', baseUrl: 'https://cloudcode-pa.googleapis.com' };
+    ctx.modelRegistry.getApiKeyAndHeaders = async () => ({ ok: true, apiKey: credentials });
+    let message;
+    ui.notify = (value) => { message = value; };
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx); await settle();
+    assert.equal(calls.length, expectedToken ? 1 : 0);
+    const line = stripAnsi(ui.component.render(120)[0]);
+    if (expectedToken) {
+      assert.equal(calls[0].init.headers.Authorization, `Bearer ${expectedToken}`);
+      assert.equal(calls[0].init.method, 'POST');
+      assert.match(line, /\[⣿{3}⣤⠀{6}\] $/);
+    } else {
+      assert.doesNotMatch(line, /\[[⠀⡀⣀⣄⣤⣦⣶⣷⣿]+\]/);
+    }
+    await runtime.commands.get('minfooter').handler('status', ctx);
+    assert.ok(message.includes(`Usage: ${expectedStatus}`), message);
+    assert.ok(!message.includes(credentials), 'diagnostics must not expose credentials');
+    assert.equal(calls.length, expectedToken ? 1 : 0, 'diagnostics do not retry authentication');
+  });
+}
+
 test('switches between supported providers cancel old requests and never display their late results', async (t) => {
   let resolveOld;
   let calls = 0;
