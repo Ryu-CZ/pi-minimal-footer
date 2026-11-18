@@ -44,26 +44,26 @@ jobs:
             const { readFile } = require('node:fs/promises');
             const { owner, repo } = context.repo;
             // Do not let an older run replace coverage for a newer main commit.
-            const { data: main } = await github.git.getRef({ owner, repo, ref: 'heads/main' });
+            const { data: main } = await github.rest.git.getRef({ owner, repo, ref: 'heads/main' });
             if (main.object.sha !== context.sha) return;
             let parent;
             try {
-              const { data } = await github.git.getRef({ owner, repo, ref: 'heads/coverage' });
+              const { data } = await github.rest.git.getRef({ owner, repo, ref: 'heads/coverage' });
               parent = data.object.sha;
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-            const { data: tree } = await github.git.createTree({
+            const { data: tree } = await github.rest.git.createTree({
               owner, repo,
               tree: [{ path: 'badge.svg', mode: '100644', type: 'blob', content: await readFile('coverage.svg', 'utf8') }],
             });
-            const { data: commit } = await github.git.createCommit({
+            const { data: commit } = await github.rest.git.createCommit({
               owner, repo, tree: tree.sha,
               message: `Update coverage for ${context.sha}`,
               parents: parent ? [parent] : [],
             });
             if (parent) {
-              await github.git.updateRef({ owner, repo, ref: 'heads/coverage', sha: commit.sha });
+              await github.rest.git.updateRef({ owner, repo, ref: 'heads/coverage', sha: commit.sha });
             } else {
-              await github.git.createRef({ owner, repo, ref: 'refs/heads/coverage', sha: commit.sha });
+              await github.rest.git.createRef({ owner, repo, ref: 'refs/heads/coverage', sha: commit.sha });
             }
