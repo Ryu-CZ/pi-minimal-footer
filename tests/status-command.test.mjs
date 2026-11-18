@@ -37,6 +37,30 @@ test('status and unknown arguments never toggle, write settings, or replace the 
   assert.match(messages.pop(), /Ownership: not owned[\s\S]*Layout: inactive/);
 });
 
+test('minfooter without arguments toggles ownership and persists each state', async (t) => {
+  const settingsPath = join(agentDir, 'settings.json');
+  await writeFile(settingsPath, JSON.stringify({ theme: 'dark', minFooter: { enabled: true, showPath: false } }));
+  const runtime = await installExtension();
+  const { ctx, ui } = makeContext();
+  const messages = [];
+  ui.notify = (message) => messages.push(message);
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+  await start(runtime, ctx);
+  const firstRenderer = ui.component;
+  assert.ok(firstRenderer);
+
+  for (const enabled of [false, true]) {
+    await runtime.commands.get('minfooter').handler('', ctx);
+    assert.equal(Boolean(ui.component), enabled);
+    assert.equal(messages.at(-1), `Minimal footer ${enabled ? 'enabled' : 'disabled'}`);
+    const settings = JSON.parse(await readFile(settingsPath, 'utf8'));
+    assert.equal(settings.minFooter.enabled, enabled);
+    assert.equal(settings.minFooter.showPath, false);
+    assert.equal(settings.theme, 'dark');
+  }
+  assert.notEqual(ui.component, firstRenderer, 're-enabling installs a fresh renderer');
+});
+
 test('status reports compact layout and disabled footer without installing anything', async (t) => {
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ minFooter: { compactEditor: true } }));
   const runtime = await installExtension();
