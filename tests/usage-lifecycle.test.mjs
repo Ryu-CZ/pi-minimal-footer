@@ -264,6 +264,43 @@ test('reset triggers a fresh check, failed refresh dims cached usage without a r
   assert.match(stripAnsi(ui.component.render(120)[0]), /\[⠀{10}\]↻\d\d:\d\d $/);
 });
 
+for (const phase of ['authentication', 'response body']) {
+  test(`usage timeout wins when ${phase} resolves before the await continuation`, async (t) => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
+    let resolvePending;
+    const pending = new Promise((resolve) => { resolvePending = resolve; });
+    let responses = 0;
+    const calls = fakeUsageFetch(t, () => phase === 'response body' && ++responses === 1
+      ? { ok: true, json: () => pending } : Response.json(usagePayload()));
+    const runtime = await installExtension();
+    const { ctx, ui } = codexContext();
+    const credentials = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
+    let authCalls = 0;
+    ctx.modelRegistry.getApiKeyAndHeaders = () => phase === 'authentication' && ++authCalls === 1
+      ? pending : Promise.resolve(credentials);
+    t.after(() => emit(runtime, 'session_shutdown', ctx));
+    await start(runtime, ctx); await settle();
+
+    resolvePending(phase === 'authentication' ? credentials : usagePayload(100));
+    const expire = () => t.mock.timers.tick(9000);
+    // Authentication passes through usageRequest's await before abortable resolves.
+    // Expire after abortable fulfills, but before poll's continuation can consume it.
+    if (phase === 'authentication') queueMicrotask(() => queueMicrotask(expire));
+    else queueMicrotask(expire);
+    await settle();
+    assert.equal(calls.length, phase === 'authentication' ? 0 : 1);
+    assert.equal(hasUsageBar(ui), false, 'timed-out results must not publish usage');
+    let message;
+    ui.notify = (value) => { message = value; };
+    await runtime.commands.get('minfooter').handler('status', ctx);
+    assert.match(message, /Usage: unavailable \(refresh failed\)/);
+
+    t.mock.timers.tick(231000); await settle();
+    assert.equal(calls.length, phase === 'authentication' ? 1 : 2);
+    assert.match(stripAnsi(ui.component.render(120)[0]), /\[⣿{3}⣤⠀{6}\]↻/, 'the next scheduled attempt recovers');
+  });
+}
+
 test('usage request times out and retries later; effective custom origin or non-OAuth key is never sent', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1791200000000 });
   const original = globalThis.fetch;
