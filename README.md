@@ -39,9 +39,9 @@ pi install npm:pi-minimal-footer
 | `/minfooter` | Toggle footer |
 | `/minfooter on` | Enable |
 | `/minfooter off` | Disable |
-| `/minfooter status` | Show effective settings, layout/ownership, and cached quota diagnostics |
+| `/minfooter status` | Show effective settings, layout/ownership, and cached quota and response-model diagnostics |
 
-`status` does not change settings, reclaim the footer, or make quota requests. It reports cached state only; missing credentials and unsupported authentication/endpoints share a diagnostic reason. Unknown arguments show usage without toggling.
+`status` does not change settings, reclaim the footer, resolve credentials, or make requests. It reports cached quota state and local session metadata; missing credentials and unsupported authentication/endpoints share a diagnostic reason. When Pi records a different concrete response model for the latest assistant response on the active branch for the currently selected provider and model, status includes it. Unknown arguments show usage without toggling.
 
 ## Settings
 

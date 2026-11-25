@@ -4,6 +4,23 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { agentDir, createEventBus, makeContext, codexContext, installExtension, start, emit, settle, fakeUsageFetch } from './helpers/footer-fixture.mjs';
 
+function assistantMessage(provider, model, responseModel) {
+  return {
+    role: 'assistant', content: [], api: 'test-api', provider, model,
+    ...(responseModel === undefined ? {} : { responseModel }),
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason: 'stop', timestamp: Date.now(),
+  };
+}
+
+async function readStatus(runtime, ctx) {
+  let message;
+  ctx.ui.notify = (value) => { message = value; };
+  await runtime.commands.get('minfooter').handler('status', ctx);
+  return message;
+}
+
 test('status and unknown arguments never toggle, write settings, or replace the renderer', async (t) => {
   const bus = createEventBus();
   const runtime = await installExtension(bus);
@@ -35,6 +52,64 @@ test('status and unknown arguments never toggle, write settings, or replace the 
   ui.setFooter(() => ({ render: () => ['other'] }));
   await runtime.commands.get('minfooter').handler('status', ctx);
   assert.match(messages.pop(), /Ownership: not owned[\s\S]*Layout: inactive/);
+});
+
+test('status reports only safe response metadata from the latest active-branch assistant for the selected model', async (t) => {
+  const runtime = await installExtension();
+  const { ctx } = makeContext();
+  ctx.model.provider = 'test-provider';
+  ctx.model.id = 'selected-model';
+  await start(runtime, ctx);
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+
+  const cases = [
+    ['different reported model', assistantMessage('test-provider', 'selected-model', 'routed-model'), true],
+    ['same as selected model', assistantMessage('test-provider', 'selected-model', 'selected-model'), false],
+    ['missing response metadata', assistantMessage('test-provider', 'selected-model'), false],
+    ['different provider', assistantMessage('other-provider', 'selected-model', 'routed-model'), false],
+    ['different selected model', assistantMessage('test-provider', 'other-model', 'routed-model'), false],
+    ['newline in metadata', assistantMessage('test-provider', 'selected-model', 'unsafe\nmodel'), false],
+    ['trailing newline in metadata', assistantMessage('test-provider', 'selected-model', 'routed-model\n'), false],
+    ['terminal control in metadata', assistantMessage('test-provider', 'selected-model', '\u001b[31mrouted-model'), false],
+  ];
+  for (const [label, response, shown] of cases) {
+    ctx.sessionManager = makeContext().ctx.sessionManager;
+    ctx.sessionManager.appendMessage(response);
+    const message = await readStatus(runtime, ctx);
+    assert.equal(/Last response model:/.test(message), shown, label);
+  }
+
+  ctx.sessionManager = makeContext().ctx.sessionManager;
+  ctx.sessionManager.appendMessage(assistantMessage('test-provider', 'selected-model', 'older-routed-model'));
+  ctx.sessionManager.appendMessage({ role: 'user', content: 'next', timestamp: Date.now() });
+  ctx.sessionManager.appendMessage(assistantMessage('test-provider', 'selected-model'));
+  assert.doesNotMatch(await readStatus(runtime, ctx), /Last response model:/, 'missing metadata must not backfill from an older response');
+});
+
+test('status follows the current model, session, and active branch without retaining prior response metadata', async (t) => {
+  const runtime = await installExtension();
+  const { ctx } = makeContext();
+  ctx.model.provider = 'test-provider';
+  ctx.model.id = 'selected-model';
+  await start(runtime, ctx);
+  t.after(() => emit(runtime, 'session_shutdown', ctx));
+
+  const root = ctx.sessionManager.appendMessage({ role: 'user', content: 'start', timestamp: Date.now() });
+  ctx.sessionManager.appendMessage(assistantMessage('test-provider', 'selected-model', 'branch-a-model'));
+  assert.match(await readStatus(runtime, ctx), /Last response model: branch-a-model/);
+
+  ctx.model.id = 'other-model';
+  assert.doesNotMatch(await readStatus(runtime, ctx), /Last response model:/);
+  ctx.model.id = 'selected-model';
+
+  ctx.sessionManager.branch(root);
+  assert.doesNotMatch(await readStatus(runtime, ctx), /Last response model:/, 'the abandoned branch must not supply metadata');
+
+  ctx.sessionManager.appendMessage(assistantMessage('test-provider', 'selected-model', 'branch-b-model'));
+  assert.match(await readStatus(runtime, ctx), /Last response model: branch-b-model/);
+
+  ctx.sessionManager = makeContext().ctx.sessionManager;
+  assert.doesNotMatch(await readStatus(runtime, ctx), /Last response model:/, 'a new session must not retain prior metadata');
 });
 
 test('minfooter without arguments toggles ownership and persists each state', async (t) => {

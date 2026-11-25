@@ -103,7 +103,9 @@ Reuse Pi's selected-provider credentials. Copilot uses the saved OAuth GitHub lo
 
 ### On-demand diagnostics
 
-`/minfooter status` reports effective footer, usage, cost, and compact preferences, displayed fields, footer ownership, actual layout, and the cached quota state. It never reloads settings, resolves credentials, starts requests, or reinstalls the footer. Quota reasons distinguish unsupported selections, loading, absent quota, failed refreshes, and passed reset times. A missing usage request is reported as credentials unavailable or authentication/endpoint unsupported; diagnostics do not guess which cause applies. Only fixed labels are shown, never tokens, headers, raw errors, or response bodies.
+`/minfooter status` reports effective footer, usage, cost, and compact preferences, displayed fields, footer ownership, actual layout, and the cached quota state. It never reloads settings, resolves credentials, starts requests, or reinstalls the footer. Quota reasons distinguish unsupported selections, loading, absent quota, failed refreshes, and passed reset times. A missing usage request is reported as credentials unavailable or authentication/endpoint unsupported; diagnostics do not guess which cause applies. Quota diagnostics use fixed labels and never show tokens, headers, raw errors, or response bodies. The response-model value is shown only after rejecting control characters and line breaks.
+
+- **Last response model:** When Pi records a different concrete `responseModel` on the latest assistant response on the active branch for the selected provider/model, status shows `Last response model: …`. It reads the local session only and omits missing, unsafe, or unchanged values without searching older responses.
 
 ### Verification limits
 
@@ -113,13 +115,17 @@ Parsing and lifecycle behavior have automated coverage. Authenticated provider e
 
 Not implemented. Keep the normal footer to one line; prefer on-demand details or temporary status over new permanent fields.
 
-- **Last response model.** In `/minfooter status`, show the concrete model reported by Pi as `responseModel` when it differs from the selected model. This is useful for routed providers such as Radius. Omit it when the last response does not report a concrete model, and keep the selected model in the footer: the next response may use a different one.
 - **Temporary rate-limit status.** Pi 1.6.1 exposes HTTP errors and retries for more providers through `after_provider_response`. A `429` with a usable `Retry-After` can explain a pause. Show a countdown only if Pi is actually waiting to retry; clear the status when that wait ends. A rate limit is not proof that a subscription quota is exhausted.
 - **Reported vs. estimated cost.** Pi can mark a cost as provider-reported with `Usage.cost.totalFromProvider`. Keep the `~` on the session total unless every included cost is provider-reported. This does not require a billing request.
 
-Provider gaps to investigate, not a popularity ranking:
+### Next provider candidate: OpenRouter key budget
 
-- **OpenRouter:** Check whether the selected key can report its remaining budget or account credits. Keep those distinct from subscription usage and session spend.
+Use OpenRouter's documented [current-key endpoint](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key) (`GET /api/v1/key`) with Pi's existing OpenRouter credential. If the selected key has a spending cap, show its cached `limit_remaining` in `/minfooter status` as `OpenRouter key budget remaining: $…`. Show zero when exhausted; omit the field for uncapped keys or when no usable value is available.
+
+Keep the request opt-in and limited to official OpenRouter endpoints. `/minfooter status` should still only read cached data. This is a key spending cap, not account credits, subscription quota, or session cost. Do not add a quota bar or ask for a management key.
+
+Other provider gaps to investigate, not a popularity ranking:
+
 - **Radius:** Start with the last response model. Only consider a quota display if Radius supplies a reliable limit for the signed-in plan.
 - **Qwen Token Plan:** The footer already hides PAYG estimates for these plans. Check whether Team and Individual plans, including their China variants, expose usage and reset times for the current key.
 

@@ -111,6 +111,27 @@ function updateState(ctx: ExtensionContext, state: FooterState, config: FooterSe
   }
 }
 
+/** Read only the newest assistant response on the active branch for the selected model. */
+function lastResponseModel(ctx: ExtensionContext): string | undefined {
+  if (!ctx.model) return undefined;
+
+  const branch = ctx.sessionManager.getBranch();
+  for (let i = branch.length - 1; i >= 0; i--) {
+    const entry = branch[i];
+    if (!entry || entry.type !== "message" || entry.message.role !== "assistant") continue;
+    const response = entry.message;
+    if (response.provider !== ctx.model.provider || response.model !== ctx.model.id) return undefined;
+
+    const reportedModelId = response.responseModel;
+    if (typeof reportedModelId !== "string") return undefined;
+    if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(reportedModelId)) return undefined;
+    const concreteModelId = reportedModelId.trim();
+    if (!concreteModelId || concreteModelId === ctx.model.id) return undefined;
+    return concreteModelId;
+  }
+  return undefined;
+}
+
 // ── Extension ─────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -356,6 +377,7 @@ export default function (pi: ExtensionAPI) {
         const owned = disposeFooter !== null;
         const usageEnabled = usageEnabledOverride ?? (config.showUsage !== false);
         const costEnabled = costEnabledOverride ?? (config.showCost !== false);
+        const responseModel = lastResponseModel(ctx);
         ctx.ui.notify([
           `Footer: ${enabled ? "enabled" : "disabled"}`,
           `Ownership: ${owned ? "owned" : "not owned"}`,
@@ -363,6 +385,7 @@ export default function (pi: ExtensionAPI) {
           `Compact requested: ${(compactEnabledOverride ?? config.compactEditor) ? "yes" : "no"}`,
           `Usage: ${!usageEnabled ? "disabled" : !owned ? "inactive (footer not owned)" : usageLimits.status()}`,
           `Cost: ${costEnabled ? "enabled (fallback)" : "disabled"}`,
+          ...(responseModel ? [`Last response model: ${responseModel}`] : []),
           `Display: ${(["showPath", "showStatuses", "showModel", "showProvider", "showThinking", "showContext",
             "contextAsPercentage", "powerlineSeparator", "maxUsageBarCells"] as const)
             .map((key) => `${key}=${config[key]}`).join(", ")}`,
