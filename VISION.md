@@ -109,6 +109,22 @@ Reuse Pi's selected-provider credentials. Copilot uses the saved OAuth GitHub lo
 
 Parsing and lifecycle behavior have automated coverage. Authenticated provider endpoints have **not** been tested live. OpenCode Go's bearer-token response format and Copilot's public endpoint/enterprise compatibility remain unverified.
 
+## Potential ideas: model, retry, and provider data
+
+Not implemented. Keep the normal footer to one line; prefer on-demand details or temporary status over new permanent fields.
+
+- **Last response model.** In `/minfooter status`, show the concrete model reported by Pi as `responseModel` when it differs from the selected model. This is useful for routed providers such as Radius. Omit it when the last response does not report a concrete model, and keep the selected model in the footer: the next response may use a different one.
+- **Temporary rate-limit status.** Pi 1.6.1 exposes HTTP errors and retries for more providers through `after_provider_response`. A `429` with a usable `Retry-After` can explain a pause. Show a countdown only if Pi is actually waiting to retry; clear the status when that wait ends. A rate limit is not proof that a subscription quota is exhausted.
+- **Reported vs. estimated cost.** Pi can mark a cost as provider-reported with `Usage.cost.totalFromProvider`. Keep the `~` on the session total unless every included cost is provider-reported. This does not require a billing request.
+
+Provider gaps to investigate, not a popularity ranking:
+
+- **OpenRouter:** Check whether the selected key can report its remaining budget or account credits. Keep those distinct from subscription usage and session spend.
+- **Radius:** Start with the last response model. Only consider a quota display if Radius supplies a reliable limit for the signed-in plan.
+- **Qwen Token Plan:** The footer already hides PAYG estimates for these plans. Check whether Team and Individual plans, including their China variants, expose usage and reset times for the current key.
+
+Verify endpoint behavior and credential scope before adding any polling. Hide unavailable values rather than guessing.
+
 ## Potential idea: provider icons
 
 Not implemented. Explore a monochrome icon before the model name to identify the **connection provider**, not the model maker. For example, Claude served through OpenCode gets the OpenCode icon. Auth variants of the same service share an icon; OpenCode Zen and Go share one too. Emoji were considered and rejected for this direction.
