@@ -26,7 +26,7 @@ An opinionated, compact, one-line status bar for [Pi](https://github.com/earendi
 
 ## Install
 
-Requires Node.js >=22.19.0. Interactive terminal UI only. Compatibility CI covers Pi 1.0.3, 1.1.0, 1.3.0, 1.4.0, 1.5.0, and 1.6.0, including compact-editor mode. Declared support is Pi >=1.0.3 <1.7.0; intervening versions are not individually verified.
+Requires Node.js >=22.19.0. Interactive terminal UI only. Compatibility CI covers Pi 1.0.3, 1.1.0, 1.3.0, 1.4.0, 1.5.0, 1.6.0, and 1.6.1, including compact-editor mode. Declared support is Pi >=1.0.3 <1.7.0; intervening versions are not individually verified.
 
 ```bash
 pi install npm:pi-minimal-footer
